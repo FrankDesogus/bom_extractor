@@ -10,7 +10,10 @@ class PageContext(BaseModel):
     source_file_hash: str
     page_number: int
     page_rotation: int = 0
+    page_width: float = 0.0
+    page_height: float = 0.0
     raw_page_text: str = ""
+    layout_metadata: dict[str, Any] = Field(default_factory=dict)
     document_id: str
 
 
@@ -77,3 +80,4 @@ class DocumentSummary(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
     fusion_decisions: list[PageFusionDecision] = Field(default_factory=list)
+    page_layouts: list[dict[str, Any]] = Field(default_factory=list)

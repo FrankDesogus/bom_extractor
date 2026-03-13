@@ -24,7 +24,14 @@ class PyMuPDFWordsParser(BasePageParser):
                 result.warnings.append("no_words_found")
                 return result
 
+            layout = page_ctx.layout_metadata or {}
             zones = zone_page_lines(page.rect.height, [w[1] for w in words])
+            if "zone_header_cutoff" in layout and "zone_footer_cutoff" in layout:
+                zones = zones.__class__(
+                    page_height=page.rect.height,
+                    header_cutoff=float(layout["zone_header_cutoff"]),
+                    footer_cutoff=float(layout["zone_footer_cutoff"]),
+                )
             buckets: dict[int, list[tuple]] = defaultdict(list)
             skipped_header_footer = 0
             for w in words:
