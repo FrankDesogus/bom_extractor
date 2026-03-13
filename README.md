@@ -1,123 +1,77 @@
 # BOM PDF Extractor - Phase 1
 
-Software Python modulare per estrazione **lossless e robusta** di righe BOM da PDF tecnici industriali.
+Industrial-grade, **lossless-first** PDF BOM row extraction for technical drawings.
 
-## Obiettivo
+## Scope (Phase 1)
 
-Questa versione implementa la **FASE 1**:
-- ingestione PDF pagina per pagina
-- estrazione grezza multi-parser
-- normalizzazione lossless
-- validazione soft
-- storage in JSONL / CSV / Parquet opzionale
-- logging strutturato
-- base pronta per futura integrazione LLM
+This project focuses strictly on extraction robustness:
+- multi-page BOM table extraction
+- parser comparison and page-level selection
+- header/footer contamination reduction
+- multiline row stitching with traceability
+- soft validation and warnings (never hard semantic rejection)
+- batch processing and structured logging
 
-## Principi progettuali
+It intentionally does **not** build BOM hierarchy or perform semantic classification.
 
-- non assume schema fisso di colonne
-- non scarta righe dubbie
-- conserva sempre `raw_text`
-- registra sempre provenienza e parser
-- supporta fallback tra parser
-- continua anche in presenza di errori
-- lavora a batch e riduce il carico in memoria processando pagina per pagina
-
-## Parser implementati
-
-1. **Camelot Lattice** (quando disponibile e utile)
-2. **pdfplumber Table Finder**
-3. **PyMuPDF word clustering**
-4. **OCR stub/fallback controllato**
-
-L'OCR è volutamente disabilitato di default e viene attivato solo su richiesta esplicita. In questa build è presente un placeholder architetturale per mantenere il design evolutivo.
-
-## Struttura
+## Architecture
 
 ```text
 src/bom_extractor/
   cli.py
   config.py
-  logging_utils.py
   models.py
   pipeline.py
+  utils.py
+  logging_utils.py
   normalizer.py
   validators.py
   storage.py
-  utils.py
   parsers/
     base.py
     camelot_parser.py
     pdfplumber_parser.py
     pymupdf_parser.py
     ocr_parser.py
-tests/
-examples/
+  fusion/
+    page_fuser.py
+  zoning/
+    page_zoning.py
+  normalization/
+    row_reconstruction.py
 ```
 
-## Installazione
+### Extraction flow
 
-```bash
-python -m venv .venv
-source .venv/bin/activate   # Linux/macOS
-pip install -r requirements.txt
-```
+1. **Ingestion**
+   - input file or folder of PDFs
+   - per-document hash and context metadata
+2. **Multi-parser extraction per page**
+   - Camelot (lattice + stream fallback)
+   - pdfplumber (line/text table strategies)
+   - PyMuPDF word clustering
+   - OCR fallback (optional stub)
+3. **Fusion / ranking**
+   - explainable page score per parser
+   - metrics: item ratio, quantity ratio, header/footer contamination, fragmentation, parser confidence
+4. **Lossless normalization**
+   - always preserve `raw_text` and `extracted_columns`
+   - weak field projection (`item`, `code`, `uom`, `quantity_raw`, ...)
+5. **Row reconstruction**
+   - continuation stitching
+   - stitched fragments kept in metadata for provenance
+6. **Soft validation**
+   - warnings for suspicious/header/footer/column-count anomalies
+7. **Storage & logs**
+   - JSONL primary output
+   - CSV optional
+   - Parquet optional
+   - structured logs + document summary with fusion decisions
 
-Note:
-- `camelot` può richiedere dipendenze di sistema a seconda dell'ambiente.
-- `parquet` è opzionale: serve `pyarrow` o `fastparquet`.
+## Row model (mandatory fields)
 
-## Esecuzione
-
-### Su un singolo PDF
-
-```bash
-python -m bom_extractor.cli parse \
-  --input "/path/to/file.pdf" \
-  --output-dir ./out
-```
-
-### Su una cartella
-
-```bash
-python -m bom_extractor.cli parse \
-  --input "/path/to/pdf_folder" \
-  --output-dir ./out
-```
-
-### Con OCR fallback abilitato
-
-```bash
-python -m bom_extractor.cli parse \
-  --input "/path/to/pdf_folder" \
-  --output-dir ./out \
-  --enable-ocr
-```
-
-### Solo JSONL
-
-```bash
-python -m bom_extractor.cli parse \
-  --input "/path/to/file.pdf" \
-  --output-dir ./out \
-  --disable-csv
-```
-
-## Output
-
-Per ogni esecuzione il sistema produce:
-- `rows.jsonl` → output principale
-- `rows.csv` → opzionale
-- `rows.parquet` → opzionale, solo se engine disponibile
-- `document_summary.json` → metriche e anomalie
-- `logs/pipeline.log.jsonl`
-- `logs/errors.log.jsonl`
-
-## Modello dati per riga
-
-Campi principali:
+Each output row includes:
 - `source_file`
-- `source_file_hash`
 - `page_number`
 - `row_index_on_page`
 - `raw_text`
@@ -134,61 +88,51 @@ Campi principali:
 - `parser_name`
 - `warnings`
 
-## Strategia implementata
+Additional provenance is preserved in `metadata`.
 
-### Ingestione
-- scansione file PDF
-- hash SHA256
-- iterazione pagina per pagina
+## CLI usage
 
-### Estrazione grezza
-Ogni parser produce una lista di `RawRowRecord` con:
-- celle estratte
-- testo grezzo riga
-- score/confidenza
-- warning
-- bbox opzionale
+```bash
+python -m bom_extractor.cli parse --input "E0181296 01-06_BOM.pdf" --output-dir ./out
+```
 
-### Normalizzazione lossless
-La normalizzazione **non forza una semantica forte**:
-- mantiene `extracted_columns`
-- prova un mapping best-effort verso campi base
-- salva sempre il testo originale
+Batch mode:
 
-### Validazione soft
-- marca header duplicati
-- marca footer
-- marca righe con pochi campi
-- marca possibili continuazioni multilinea
-- marca variazioni di schema
+```bash
+python -m bom_extractor.cli parse --input ./pdf_folder --output-dir ./out
+```
 
-## Test
+Optional OCR flag:
 
-I test non fanno assunzioni rigide sul contenuto finale, ma verificano:
-- che l'estrazione non crashi
-- che esista sempre `raw_text`
-- che l'output abbia provenienza completa
-- che il pipeline continui in caso di parser failure
+```bash
+python -m bom_extractor.cli parse --input ./pdf_folder --output-dir ./out --enable-ocr
+```
 
-Esegui:
+## Outputs
+
+- `rows.jsonl` (primary)
+- `rows.csv` (optional)
+- `rows.parquet` (optional, if parquet engine available)
+- `document_summary.json` (includes parser usage + fusion decisions)
+- `logs/pipeline.log.jsonl`
+- `logs/errors.log.jsonl`
+
+## Testing
 
 ```bash
 pytest -q
 ```
 
-## Limiti attuali
+Tests cover smoke extraction, parser fusion behavior, stitching traceability, and utility heuristics.
 
-- L'OCR è solo un'estensione architetturale e non una pipeline completa.
-- Il row stitching multilinea è prudente e conservativo.
-- Il mapping colonne→campi è volutamente weak per evitare inferenze premature.
-- La parte di ranking tra parser è spiegabile ma euristica, non ML.
+## Current limitations
 
-## Evoluzione verso Fase 2
+- OCR is still an optional placeholder and not a full OCR extraction stack.
+- Heuristic scoring is explainable but not learned.
+- Page zoning is conservative and geometry-driven.
 
-Questa base è pronta per aggiungere:
-- classificazione LLM assistita
-- interpretazione semantica campi
-- costruzione albero BOM
-- deduplica e linking documentale
-- enrichment con policy di validazione più forti
+## Next priorities
 
+- Optional real OCR backend and parser integration.
+- Adaptive zoning using repeated patterns across page sets.
+- Better parser merge (not only winner-takes-page) with disagreement reconciliation.

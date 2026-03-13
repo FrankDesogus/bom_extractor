@@ -1,21 +1,21 @@
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
 import fitz
 
 from .config import ExtractionConfig
+from .fusion import PageResultFuser
 from .logging_utils import configure_logging
 from .models import DocumentSummary, PageContext, RawRowRecord
 from .normalizer import stitch_multiline_rows, weak_map_columns
-from .storage import StorageManager
-from .utils import looks_like_item, normalize_space, sha256_file
-from .validators import validate_row
 from .parsers.camelot_parser import CamelotLatticeParser
 from .parsers.ocr_parser import OCRFallbackParser
 from .parsers.pdfplumber_parser import PdfPlumberTableParser
 from .parsers.pymupdf_parser import PyMuPDFWordsParser
+from .storage import StorageManager
+from .utils import normalize_space, sha256_file
+from .validators import validate_row
 
 
 class ExtractionPipeline:
@@ -24,6 +24,7 @@ class ExtractionPipeline:
         self.logger = configure_logging(config.output_dir)
         self.storage = StorageManager(config.output_dir)
         self.parsers = self._build_parsers()
+        self.fuser = PageResultFuser(low_confidence_threshold=config.low_confidence_threshold)
 
     def _build_parsers(self):
         parsers = []
@@ -45,6 +46,7 @@ class ExtractionPipeline:
             rows, summary = self.parse_document(pdf_path)
             all_rows.extend(rows)
             summaries.append(summary)
+
         combined = DocumentSummary(
             source_file=str(input_path),
             source_file_hash="",
@@ -54,6 +56,7 @@ class ExtractionPipeline:
             parser_usage=self._merge_parser_usage(summaries),
             warnings=[w for s in summaries for w in s.warnings],
             errors=[e for s in summaries for e in s.errors],
+            fusion_decisions=[d for s in summaries for d in s.fusion_decisions],
         )
         self.storage.write_jsonl(all_rows)
         if self.config.write_csv:
@@ -66,65 +69,43 @@ class ExtractionPipeline:
     def parse_document(self, pdf_path: Path) -> tuple[list[RawRowRecord], DocumentSummary]:
         file_hash = sha256_file(pdf_path)
         document_id = f"{pdf_path.stem}:{file_hash[:12]}"
-        summary = DocumentSummary(
-            source_file=str(pdf_path),
-            source_file_hash=file_hash,
-            document_id=document_id,
-        )
+        summary = DocumentSummary(source_file=str(pdf_path), source_file_hash=file_hash, document_id=document_id)
         rows: list[RawRowRecord] = []
+
         doc = fitz.open(pdf_path)
         try:
             total_pages = len(doc)
             limit = min(total_pages, self.config.max_pages) if self.config.max_pages else total_pages
             for page_idx in range(limit):
                 page = doc[page_idx]
-                page_text = normalize_space(page.get_text("text"))
                 page_ctx = PageContext(
                     source_file=str(pdf_path),
                     source_file_hash=file_hash,
                     document_id=document_id,
                     page_number=page_idx + 1,
                     page_rotation=page.rotation,
-                    raw_page_text=page_text,
+                    raw_page_text=normalize_space(page.get_text("text")),
                 )
-                page_rows = self._parse_page(pdf_path, page_ctx)
+                page_rows = self._parse_page(pdf_path, page_ctx, summary)
                 rows.extend(page_rows)
-                if page_rows:
-                    chosen_parser = page_rows[0].parser_name
-                    summary.parser_usage[chosen_parser] = summary.parser_usage.get(chosen_parser, 0) + 1
                 summary.pages_seen += 1
             summary.rows_emitted = len(rows)
             return rows, summary
         except Exception as exc:
             summary.errors.append(f"document_error:{type(exc).__name__}:{exc}")
-            self.logger.error(
-                "document parse failed",
-                extra={"structured": {"source_file": str(pdf_path), "error": str(exc)}},
-            )
+            self.logger.error("document parse failed", extra={"structured": {"source_file": str(pdf_path), "error": str(exc)}})
             if not self.config.continue_on_error:
                 raise
             return rows, summary
         finally:
             doc.close()
 
-    def _parse_page(self, pdf_path: Path, page_ctx: PageContext) -> list[RawRowRecord]:
+    def _parse_page(self, pdf_path: Path, page_ctx: PageContext, summary: DocumentSummary) -> list[RawRowRecord]:
         parser_results = []
         for parser in self.parsers:
             try:
                 result = parser.parse_page(pdf_path, page_ctx)
                 parser_results.append(result)
-                self.logger.info(
-                    "parser completed",
-                    extra={"structured": {
-                        "source_file": page_ctx.source_file,
-                        "page_number": page_ctx.page_number,
-                        "parser_name": result.parser_name,
-                        "rows": len(result.rows),
-                        "confidence": result.confidence,
-                        "warnings": result.warnings,
-                        "errors": result.errors,
-                    }},
-                )
             except Exception as exc:
                 self.logger.error(
                     "parser failed",
@@ -138,48 +119,41 @@ class ExtractionPipeline:
                 if not self.config.continue_on_error:
                     raise
 
-        best = self._choose_best_result(parser_results, page_ctx)
+        selected, decision = self.fuser.choose(page_ctx.page_number, parser_results)
+        summary.fusion_decisions.append(decision)
+        summary.parser_usage[decision.selected_parser] = summary.parser_usage.get(decision.selected_parser, 0) + 1
+
+        self.logger.info(
+            "page_parser_selected",
+            extra={"structured": {
+                "source_file": page_ctx.source_file,
+                "page_number": page_ctx.page_number,
+                "selected_parser": decision.selected_parser,
+                "selected_score": decision.selected_score,
+                "disagreement": decision.disagreement,
+                "scores": [s.model_dump() for s in decision.score_details],
+            }},
+        )
+
         normalized: list[RawRowRecord] = []
-        for row in best.rows:
+        for row in selected.rows:
             row = weak_map_columns(row)
             row = validate_row(row)
             normalized.append(row)
+
         normalized = stitch_multiline_rows(normalized)
-        return normalized
+        return self._decontaminate_page_rows(normalized)
 
-    def _choose_best_result(self, parser_results, page_ctx: PageContext):
-        if not parser_results:
-            raise RuntimeError("No parser results available")
-
-        def score(res):
-            item_like = 0
-            for row in res.rows:
-                first = row.extracted_columns[0] if row.extracted_columns else None
-                if looks_like_item(first):
-                    item_like += 1
-            item_ratio = item_like / len(res.rows) if res.rows else 0.0
-            suspicious_single_blob = 1 if len(res.rows) == 1 and item_like == 0 else 0
-            return (
-                item_like,
-                item_ratio,
-                res.confidence,
-                len(res.rows),
-                -suspicious_single_blob,
-                -len(res.errors),
-            )
-
-        best = max(parser_results, key=score)
-        if best.confidence < self.config.low_confidence_threshold:
-            self.logger.warning(
-                "low confidence page parse",
-                extra={"structured": {
-                    "source_file": page_ctx.source_file,
-                    "page_number": page_ctx.page_number,
-                    "parser_name": best.parser_name,
-                    "confidence": best.confidence,
-                }},
-            )
-        return best
+    def _decontaminate_page_rows(self, rows: list[RawRowRecord]) -> list[RawRowRecord]:
+        if not rows:
+            return rows
+        noisy = [r for r in rows if "header_row" in r.warnings or "footer_row" in r.warnings]
+        clean = [r for r in rows if r not in noisy]
+        if clean and noisy:
+            for row in noisy:
+                row.warnings.append("suppressed_as_layout_noise")
+            return clean
+        return rows
 
     @staticmethod
     def _merge_parser_usage(summaries: list[DocumentSummary]) -> dict[str, int]:
