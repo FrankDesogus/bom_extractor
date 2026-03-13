@@ -54,6 +54,13 @@ class PdfPlumberTableParser(BasePageParser):
                 result.warnings.append("no_tables_found")
                 words = page.extract_words() or []
                 zones = zone_page_lines(page.height, [w["top"] for w in words])
+                layout = page_ctx.layout_metadata or {}
+                if "zone_header_cutoff" in layout and "zone_footer_cutoff" in layout:
+                    zones = zones.__class__(
+                        page_height=page.height,
+                        header_cutoff=float(layout["zone_header_cutoff"]),
+                        footer_cutoff=float(layout["zone_footer_cutoff"]),
+                    )
                 by_line: dict[int, list[str]] = {}
                 for w in words:
                     if w["top"] <= zones.header_cutoff or w["bottom"] >= zones.footer_cutoff:

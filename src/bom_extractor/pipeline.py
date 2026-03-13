@@ -16,6 +16,7 @@ from .parsers.pymupdf_parser import PyMuPDFWordsParser
 from .storage import StorageManager
 from .utils import normalize_space, sha256_file
 from .validators import validate_row
+from .zoning import infer_page_layout
 
 
 class ExtractionPipeline:
@@ -57,6 +58,7 @@ class ExtractionPipeline:
             warnings=[w for s in summaries for w in s.warnings],
             errors=[e for s in summaries for e in s.errors],
             fusion_decisions=[d for s in summaries for d in s.fusion_decisions],
+            page_layouts=[p for s in summaries for p in s.page_layouts],
         )
         self.storage.write_jsonl(all_rows)
         if self.config.write_csv:
@@ -84,8 +86,17 @@ class ExtractionPipeline:
                     document_id=document_id,
                     page_number=page_idx + 1,
                     page_rotation=page.rotation,
+                    page_width=page.rect.width,
+                    page_height=page.rect.height,
                     raw_page_text=normalize_space(page.get_text("text")),
                 )
+                page_ctx.layout_metadata = self._build_page_layout(page, page_ctx)
+                summary.page_layouts.append({
+                    "page_number": page_ctx.page_number,
+                    "header_fields_raw": page_ctx.layout_metadata.get("header_lines", []),
+                    "footer_fields_raw": page_ctx.layout_metadata.get("footer_lines", []),
+                    "page_warnings": page_ctx.layout_metadata.get("layout_warnings", []),
+                })
                 page_rows = self._parse_page(pdf_path, page_ctx, summary)
                 rows.extend(page_rows)
                 summary.pages_seen += 1
@@ -121,6 +132,8 @@ class ExtractionPipeline:
 
         selected, decision = self.fuser.choose(page_ctx.page_number, parser_results)
         summary.fusion_decisions.append(decision)
+        if summary.page_layouts:
+            summary.page_layouts[-1]["page_parser_decision"] = decision.model_dump()
         summary.parser_usage[decision.selected_parser] = summary.parser_usage.get(decision.selected_parser, 0) + 1
 
         self.logger.info(
@@ -147,13 +160,27 @@ class ExtractionPipeline:
     def _decontaminate_page_rows(self, rows: list[RawRowRecord]) -> list[RawRowRecord]:
         if not rows:
             return rows
-        noisy = [r for r in rows if "header_row" in r.warnings or "footer_row" in r.warnings]
-        clean = [r for r in rows if r not in noisy]
-        if clean and noisy:
-            for row in noisy:
-                row.warnings.append("suppressed_as_layout_noise")
-            return clean
+        for row in rows:
+            if "header_row" in row.warnings and "probable_header_contamination" not in row.warnings:
+                row.warnings.append("probable_header_contamination")
+            if "footer_row" in row.warnings and "probable_footer_contamination" not in row.warnings:
+                row.warnings.append("probable_footer_contamination")
         return rows
+
+    def _build_page_layout(self, page: fitz.Page, page_ctx: PageContext) -> dict:
+        words = page.get_text("words") or []
+        compact_words = [(w[0], w[1], w[2], w[3], normalize_space(w[4])) for w in words if normalize_space(w[4])]
+        layout = infer_page_layout(page.rect.height, compact_words)
+        return {
+            "zone_header_cutoff": layout.zones.header_cutoff,
+            "zone_footer_cutoff": layout.zones.footer_cutoff,
+            "header_lines": layout.header_lines,
+            "table_lines": layout.table_lines,
+            "footer_lines": layout.footer_lines,
+            "layout_warnings": layout.warnings,
+            "page_width": page_ctx.page_width,
+            "page_height": page_ctx.page_height,
+        }
 
     @staticmethod
     def _merge_parser_usage(summaries: list[DocumentSummary]) -> dict[str, int]:

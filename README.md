@@ -7,7 +7,8 @@ Industrial-grade, **lossless-first** PDF BOM row extraction for technical drawin
 This project focuses strictly on extraction robustness:
 - multi-page BOM table extraction
 - parser comparison and page-level selection
-- header/footer contamination reduction
+- dynamic layout-aware page zoning (header/table/footer)
+- header/footer contamination reduction without silent row dropping
 - multiline row stitching with traceability
 - soft validation and warnings (never hard semantic rejection)
 - batch processing and structured logging
@@ -51,18 +52,21 @@ src/bom_extractor/
    - pdfplumber (line/text table strategies)
    - PyMuPDF word clustering
    - OCR fallback (optional stub)
-3. **Fusion / ranking**
+3. **Layout inference (per page)**
+   - infer dynamic `header_zone`, `table_zone`, `footer_zone` from geometry + lexical/table signals
+   - retain `header_fields_raw`, `footer_fields_raw`, cutoffs, and layout warnings in summary
+4. **Fusion / ranking**
    - explainable page score per parser
    - metrics: item ratio, quantity ratio, header/footer contamination, fragmentation, parser confidence
-4. **Lossless normalization**
+5. **Lossless normalization**
    - always preserve `raw_text` and `extracted_columns`
    - weak field projection (`item`, `code`, `uom`, `quantity_raw`, ...)
-5. **Row reconstruction**
+6. **Row reconstruction**
    - continuation stitching
    - stitched fragments kept in metadata for provenance
-6. **Soft validation**
+7. **Soft validation**
    - warnings for suspicious/header/footer/column-count anomalies
-7. **Storage & logs**
+8. **Storage & logs**
    - JSONL primary output
    - CSV optional
    - Parquet optional
@@ -113,7 +117,7 @@ python -m bom_extractor.cli parse --input ./pdf_folder --output-dir ./out --enab
 - `rows.jsonl` (primary)
 - `rows.csv` (optional)
 - `rows.parquet` (optional, if parquet engine available)
-- `document_summary.json` (includes parser usage + fusion decisions)
+- `document_summary.json` (includes parser usage + fusion decisions + page-level layout/header/footer evidence)
 - `logs/pipeline.log.jsonl`
 - `logs/errors.log.jsonl`
 

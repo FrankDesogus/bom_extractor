@@ -1,0 +1,26 @@
+from bom_extractor.zoning import infer_page_layout
+
+
+def test_infer_page_layout_separates_header_table_footer():
+    words = [
+        (10.0, 20.0, 80.0, 28.0, "BILL"),
+        (82.0, 20.0, 150.0, 28.0, "OF"),
+        (152.0, 20.0, 240.0, 28.0, "MATERIAL"),
+        (10.0, 100.0, 35.0, 108.0, "0010"),
+        (40.0, 100.0, 120.0, 108.0, "PLATE"),
+        (130.0, 100.0, 210.0, 108.0, "2"),
+        (10.0, 112.0, 35.0, 120.0, "0020"),
+        (40.0, 112.0, 120.0, 120.0, "BOLT"),
+        (130.0, 112.0, 210.0, 120.0, "6"),
+        (10.0, 760.0, 140.0, 768.0, "ISO 9001"),
+        (145.0, 760.0, 260.0, 768.0, "CONFIDENTIAL"),
+    ]
+
+    layout = infer_page_layout(page_height=800.0, words=words)
+
+    assert layout.header_lines
+    assert any("BILL OF MATERIAL" in l for l in layout.header_lines)
+    assert len(layout.table_lines) >= 2
+    assert any("0010" in l for l in layout.table_lines)
+    assert layout.footer_lines
+    assert any("ISO 9001" in l for l in layout.footer_lines)
