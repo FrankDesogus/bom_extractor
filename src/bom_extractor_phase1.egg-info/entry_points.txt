@@ -1,0 +1,2 @@
+[console_scripts]
+bom-extractor = bom_extractor.cli:main

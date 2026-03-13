@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bom-extractor-phase1"
+version = "0.1.0"
+description = "Robust lossless BOM PDF extraction pipeline"
+readme = "README.md"
+requires-python = ">=3.10"
+
+authors = [
+  {name = "OpenAI - generated for user"}
+]
+
+dependencies = [
+  "pymupdf>=1.23",
+  "pdfplumber>=0.11",
+  "camelot-py>=1.0",
+  "pandas>=2.0",
+  "pydantic>=2.0"
+]
+
+[project.scripts]
+bom-extractor = "bom_extractor.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+addopts = "-q"

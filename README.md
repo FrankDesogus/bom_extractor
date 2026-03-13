@@ -1,0 +1,194 @@
+# BOM PDF Extractor - Phase 1
+
+Software Python modulare per estrazione **lossless e robusta** di righe BOM da PDF tecnici industriali.
+
+## Obiettivo
+
+Questa versione implementa la **FASE 1**:
+- ingestione PDF pagina per pagina
+- estrazione grezza multi-parser
+- normalizzazione lossless
+- validazione soft
+- storage in JSONL / CSV / Parquet opzionale
+- logging strutturato
+- base pronta per futura integrazione LLM
+
+## Principi progettuali
+
+- non assume schema fisso di colonne
+- non scarta righe dubbie
+- conserva sempre `raw_text`
+- registra sempre provenienza e parser
+- supporta fallback tra parser
+- continua anche in presenza di errori
+- lavora a batch e riduce il carico in memoria processando pagina per pagina
+
+## Parser implementati
+
+1. **Camelot Lattice** (quando disponibile e utile)
+2. **pdfplumber Table Finder**
+3. **PyMuPDF word clustering**
+4. **OCR stub/fallback controllato**
+
+L'OCR è volutamente disabilitato di default e viene attivato solo su richiesta esplicita. In questa build è presente un placeholder architetturale per mantenere il design evolutivo.
+
+## Struttura
+
+```text
+src/bom_extractor/
+  cli.py
+  config.py
+  logging_utils.py
+  models.py
+  pipeline.py
+  normalizer.py
+  validators.py
+  storage.py
+  utils.py
+  parsers/
+    base.py
+    camelot_parser.py
+    pdfplumber_parser.py
+    pymupdf_parser.py
+    ocr_parser.py
+tests/
+examples/
+```
+
+## Installazione
+
+```bash
+python -m venv .venv
+source .venv/bin/activate   # Linux/macOS
+pip install -r requirements.txt
+```
+
+Note:
+- `camelot` può richiedere dipendenze di sistema a seconda dell'ambiente.
+- `parquet` è opzionale: serve `pyarrow` o `fastparquet`.
+
+## Esecuzione
+
+### Su un singolo PDF
+
+```bash
+python -m bom_extractor.cli parse \
+  --input "/path/to/file.pdf" \
+  --output-dir ./out
+```
+
+### Su una cartella
+
+```bash
+python -m bom_extractor.cli parse \
+  --input "/path/to/pdf_folder" \
+  --output-dir ./out
+```
+
+### Con OCR fallback abilitato
+
+```bash
+python -m bom_extractor.cli parse \
+  --input "/path/to/pdf_folder" \
+  --output-dir ./out \
+  --enable-ocr
+```
+
+### Solo JSONL
+
+```bash
+python -m bom_extractor.cli parse \
+  --input "/path/to/file.pdf" \
+  --output-dir ./out \
+  --disable-csv
+```
+
+## Output
+
+Per ogni esecuzione il sistema produce:
+- `rows.jsonl` → output principale
+- `rows.csv` → opzionale
+- `rows.parquet` → opzionale, solo se engine disponibile
+- `document_summary.json` → metriche e anomalie
+- `logs/pipeline.log.jsonl`
+- `logs/errors.log.jsonl`
+
+## Modello dati per riga
+
+Campi principali:
+- `source_file`
+- `source_file_hash`
+- `page_number`
+- `row_index_on_page`
+- `raw_text`
+- `extracted_columns`
+- `item`
+- `type_raw`
+- `code`
+- `revision`
+- `description`
+- `uom`
+- `quantity_raw`
+- `notes`
+- `parser_confidence`
+- `parser_name`
+- `warnings`
+
+## Strategia implementata
+
+### Ingestione
+- scansione file PDF
+- hash SHA256
+- iterazione pagina per pagina
+
+### Estrazione grezza
+Ogni parser produce una lista di `RawRowRecord` con:
+- celle estratte
+- testo grezzo riga
+- score/confidenza
+- warning
+- bbox opzionale
+
+### Normalizzazione lossless
+La normalizzazione **non forza una semantica forte**:
+- mantiene `extracted_columns`
+- prova un mapping best-effort verso campi base
+- salva sempre il testo originale
+
+### Validazione soft
+- marca header duplicati
+- marca footer
+- marca righe con pochi campi
+- marca possibili continuazioni multilinea
+- marca variazioni di schema
+
+## Test
+
+I test non fanno assunzioni rigide sul contenuto finale, ma verificano:
+- che l'estrazione non crashi
+- che esista sempre `raw_text`
+- che l'output abbia provenienza completa
+- che il pipeline continui in caso di parser failure
+
+Esegui:
+
+```bash
+pytest -q
+```
+
+## Limiti attuali
+
+- L'OCR è solo un'estensione architetturale e non una pipeline completa.
+- Il row stitching multilinea è prudente e conservativo.
+- Il mapping colonne→campi è volutamente weak per evitare inferenze premature.
+- La parte di ranking tra parser è spiegabile ma euristica, non ML.
+
+## Evoluzione verso Fase 2
+
+Questa base è pronta per aggiungere:
+- classificazione LLM assistita
+- interpretazione semantica campi
+- costruzione albero BOM
+- deduplica e linking documentale
+- enrichment con policy di validazione più forti
+
