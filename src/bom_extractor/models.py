@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -46,6 +47,26 @@ class ParserPageResult(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class ParserScoreDetail(BaseModel):
+    parser_name: str
+    final_score: float
+    row_count: int
+    item_ratio: float
+    quantity_ratio: float
+    header_ratio: float
+    footer_ratio: float
+    fragmentation_penalty: float
+    reasons: list[str] = Field(default_factory=list)
+
+
+class PageFusionDecision(BaseModel):
+    page_number: int
+    selected_parser: str
+    selected_score: float
+    score_details: list[ParserScoreDetail] = Field(default_factory=list)
+    disagreement: bool = False
+
+
 class DocumentSummary(BaseModel):
     source_file: str
     source_file_hash: str
@@ -55,3 +76,4 @@ class DocumentSummary(BaseModel):
     parser_usage: dict[str, int] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
+    fusion_decisions: list[PageFusionDecision] = Field(default_factory=list)

@@ -21,14 +21,20 @@ class CamelotLatticeParser(BasePageParser):
             result.errors.append("camelot_not_available")
             return result
 
-        try:
-            tables = camelot.read_pdf(
-                str(pdf_path),
-                pages=str(page_ctx.page_number),
-                flavor="lattice",
-            )
-        except Exception as exc:
-            result.errors.append(f"camelot_error:{type(exc).__name__}:{exc}")
+        tables = None
+        used_flavor = "lattice"
+        for flavor in ("lattice", "stream"):
+            try:
+                tables = camelot.read_pdf(str(pdf_path), pages=str(page_ctx.page_number), flavor=flavor)
+                used_flavor = flavor
+            except Exception as exc:
+                result.errors.append(f"camelot_{flavor}_error:{type(exc).__name__}:{exc}")
+                continue
+            if tables:
+                break
+
+        if not tables:
+            result.warnings.append("no_tables_found")
             return result
 
         row_index = 0
@@ -53,12 +59,10 @@ class CamelotLatticeParser(BasePageParser):
                         parser_name=self.parser_name,
                         metadata={
                             "table_index_on_page": t_idx,
-                            "camelot_accuracy": getattr(table.parsing_report, "get", lambda *_: None)("accuracy")
-                            if hasattr(table, "parsing_report") else None,
+                            "camelot_flavor": used_flavor,
+                            "camelot_accuracy": getattr(table, "accuracy", None),
                         },
                     )
                 )
         result.confidence = 0.86 if result.rows else 0.0
-        if not result.rows:
-            result.warnings.append("no_tables_found")
         return result

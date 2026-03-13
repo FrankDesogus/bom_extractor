@@ -17,5 +17,11 @@ def validate_row(row: RawRowRecord) -> RawRowRecord:
     if not row.extracted_columns:
         row.warnings.append("no_columns_extracted")
     elif len(row.extracted_columns) < 3:
-        row.warnings.append("column_count_below_expected")
+        row.warnings.append("low_column_count")
+    elif len(row.extracted_columns) > 14:
+        row.warnings.append("high_column_count")
+
+    if row.quantity_raw is None:
+        row.warnings.append("quantity_missing")
+
     return row
