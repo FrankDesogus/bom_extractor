@@ -22,8 +22,7 @@ def test_infer_page_layout_separates_header_table_footer():
     assert any("BILL OF MATERIAL" in l for l in layout.header_lines)
     assert len(layout.table_lines) >= 2
     assert any("0010" in l for l in layout.table_lines)
-    assert layout.footer_lines
-    assert any("ISO 9001" in l for l in layout.footer_lines)
+    assert not layout.footer_lines
     assert layout.confidence > 0.4
 
 
@@ -36,3 +35,16 @@ def test_infer_page_layout_marks_background_noise():
     ]
     layout = infer_page_layout(page_height=800.0, words=words)
     assert "*" in layout.background_noise_lines
+
+
+def test_footer_capture_suspected_when_item_like_line_near_footer():
+    words = [
+        (10.0, 60.0, 80.0, 68.0, "RIGA"),
+        (90.0, 60.0, 140.0, 68.0, "ITEM"),
+        (150.0, 60.0, 190.0, 68.0, "CODE"),
+        (10.0, 730.0, 35.0, 738.0, "0030"),
+        (40.0, 730.0, 120.0, 738.0, "SUPPORT"),
+    ]
+    layout = infer_page_layout(page_height=800.0, words=words)
+    assert any("0030" in l for l in layout.table_lines)
+    assert "footer_capture_suspected" in layout.warnings

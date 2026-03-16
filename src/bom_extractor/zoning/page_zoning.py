@@ -34,6 +34,15 @@ def zone_page_lines(page_height: float, line_ys: list[float]) -> PageZones:
     return PageZones(page_height=page_height, header_cutoff=dynamic_top, footer_cutoff=dynamic_bottom)
 
 
+def _find_table_header_anchor(line_records: list[tuple[float, float, str, int]]) -> float | None:
+    for top, _, text, token_count in line_records:
+        normalized = normalize_space(text).lower()
+        header_signals = sum(k in normalized for k in ("item", "code", "qty", "q.ty", "description", "riga", "codice"))
+        if token_count >= 4 and header_signals >= 2:
+            return top
+    return None
+
+
 def infer_page_layout(page_height: float, words: list[tuple[float, float, float, float, str]]) -> PageLayout:
     if not words:
         zones = zone_page_lines(page_height, [])
@@ -66,19 +75,22 @@ def infer_page_layout(page_height: float, words: list[tuple[float, float, float,
         first_token = line_text.split(" ")[0]
         has_item_anchor = looks_like_item(first_token)
         has_quantity_signal = any(looks_like_quantity(tok) for tok in line_text.split(" "))
-        in_bottom_band = line_top > page_height * 0.85
+        in_bottom_band = line_top > page_height * 0.88
         if not in_bottom_band and not looks_like_footer(line_text) and (has_item_anchor or has_quantity_signal or token_count >= 4):
             table_like_indices.append(idx)
         line_records.append((line_top, line_bottom, line_text, token_count))
 
     zones = zone_page_lines(page_height, [rec[0] for rec in line_records])
     warnings: list[str] = []
+    table_anchor = _find_table_header_anchor(line_records)
     if line_records and table_like_indices:
         first_table_line = line_records[min(table_like_indices)][0]
+        if table_anchor is not None:
+            first_table_line = min(first_table_line, table_anchor)
         last_table_line = line_records[max(table_like_indices)][1]
         zones = PageZones(
             page_height=page_height,
-            header_cutoff=max(page_height * 0.04, first_table_line - page_height * 0.02),
+            header_cutoff=max(page_height * 0.03, first_table_line - page_height * 0.015),
             footer_cutoff=min(page_height * 0.98, last_table_line + page_height * 0.02),
         )
     else:
@@ -88,16 +100,41 @@ def infer_page_layout(page_height: float, words: list[tuple[float, float, float,
     table_lines: list[str] = []
     footer_lines: list[str] = []
     background_noise_lines: list[str] = []
+
+    table_token_counts = [rec[3] for rec in line_records if rec[0] > zones.header_cutoff and rec[1] < zones.footer_cutoff]
+    median_table_tokens = sorted(table_token_counts)[len(table_token_counts) // 2] if table_token_counts else 0
+
     for top, bottom, text, token_count in line_records:
         if token_count <= 1 and len(text) <= 2:
             background_noise_lines.append(text)
             continue
-        if bottom <= zones.header_cutoff or looks_like_header(text):
+
+        first_token = text.split(" ")[0]
+        has_item_like_token = looks_like_item(first_token)
+        is_footer_lexical = looks_like_footer(text)
+        is_header_lexical = looks_like_header(text)
+
+        if bottom <= zones.header_cutoff or (is_header_lexical and not has_item_like_token):
             header_lines.append(text)
-        elif top >= zones.footer_cutoff or looks_like_footer(text):
+            continue
+
+        footer_geom = top >= zones.footer_cutoff
+        footer_lexical_and_geom = is_footer_lexical and footer_geom
+        if footer_lexical_and_geom and not has_item_like_token:
             footer_lines.append(text)
-        else:
+            continue
+
+        if footer_geom and has_item_like_token:
+            if "footer_capture_suspected" not in warnings:
+                warnings.append("footer_capture_suspected")
             table_lines.append(text)
+            continue
+
+        if token_count <= max(2, median_table_tokens - 2) and top < zones.header_cutoff + (page_height * 0.015):
+            header_lines.append(text)
+            continue
+
+        table_lines.append(text)
 
     confidence = min(1.0, max(0.2, len(table_lines) / max(1, len(line_records))))
     if confidence < 0.45 and "low_layout_confidence" not in warnings:

@@ -3,7 +3,7 @@ from bom_extractor.models import ParserPageResult, RawRowRecord
 from bom_extractor.normalization.table_structure import apply_structure_assisted_reconstruction
 
 
-def make_row(text: str, cols: list[str], parser: str = "p", metadata=None) -> RawRowRecord:
+def make_row(text: str, cols: list[str], parser: str = "p", metadata=None, bbox=None) -> RawRowRecord:
     return RawRowRecord(
         source_file="a.pdf",
         source_file_hash="h",
@@ -15,6 +15,7 @@ def make_row(text: str, cols: list[str], parser: str = "p", metadata=None) -> Ra
         parser_confidence=0.5,
         parser_name=parser,
         metadata=metadata or {},
+        bbox_row=bbox,
     )
 
 
@@ -58,3 +59,38 @@ def test_structure_assisted_reconstruction_exposes_parser_sources():
     assert not warnings
     assert boundaries
     assert reconstructed[0].metadata["parser_sources"] == ["pdfplumber_table", "pymupdf_words"]
+
+
+def test_structure_marks_ambiguous_boundaries_on_parser_disagreement():
+    selected_rows = [
+        make_row("0010 BOLT", ["0010", "BOLT"], "pymupdf_words", bbox=(10, 120, 150, 130)),
+    ]
+    parser_results = [
+        ParserPageResult(parser_name="pymupdf_words", page_number=1, rows=selected_rows, metadata={"column_x_hints": [10, 80]}),
+        ParserPageResult(
+            parser_name="pdfplumber_table",
+            page_number=1,
+            rows=[make_row("0010 BOLT", ["0010", "BOLT"], "pdfplumber_table", bbox=(12, 180, 150, 190))],
+            metadata={"column_count_hint": 2},
+        ),
+    ]
+
+    reconstructed, warnings, _ = apply_structure_assisted_reconstruction(selected_rows, parser_results)
+    assert "ambiguous_row_boundary" in reconstructed[0].warnings
+    assert "parser_conflict_detected" in warnings
+
+
+def test_structure_emits_row_count_sanity_warning_on_large_drop():
+    selected_rows = [make_row("0010", ["0010"], "pymupdf_words")]
+    parser_results = [
+        ParserPageResult(parser_name="pymupdf_words", page_number=1, rows=selected_rows),
+        ParserPageResult(
+            parser_name="pdfplumber_table",
+            page_number=1,
+            rows=[make_row(str(i), [str(i)], "pdfplumber_table") for i in range(10)],
+        ),
+    ]
+
+    _, warnings, _ = apply_structure_assisted_reconstruction(selected_rows, parser_results)
+    assert "row_count_sanity_check_failed" in warnings
+    assert "large_row_count_drop" in warnings

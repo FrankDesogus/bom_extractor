@@ -4,6 +4,8 @@ from statistics import median
 
 from ..models import ParserPageResult, RawRowRecord
 
+ROW_DROP_WARN_THRESHOLD = 0.35
+
 
 def infer_column_boundaries(parser_results: list[ParserPageResult]) -> list[float]:
     """Infer dynamic x-boundaries from geometric parser metadata plus tabular hints."""
@@ -62,6 +64,24 @@ def rebuild_columns_from_word_boxes(row: RawRowRecord, boundaries: list[float]) 
     return row
 
 
+def _build_secondary_row_anchors(parser_results: list[ParserPageResult], selected_name: str) -> list[float]:
+    anchors: list[float] = []
+    for result in parser_results:
+        if result.parser_name == selected_name:
+            continue
+        for row in result.rows:
+            if row.bbox_row:
+                anchors.append(float(row.bbox_row[1]))
+    return sorted(anchors)
+
+
+def _is_boundary_supported(row: RawRowRecord, anchors: list[float]) -> bool:
+    if not anchors or not row.bbox_row:
+        return True
+    y = float(row.bbox_row[1])
+    return any(abs(y - a) <= 5.0 for a in anchors)
+
+
 def apply_structure_assisted_reconstruction(
     selected_rows: list[RawRowRecord], parser_results: list[ParserPageResult]
 ) -> tuple[list[RawRowRecord], list[str], list[float]]:
@@ -71,14 +91,29 @@ def apply_structure_assisted_reconstruction(
         warnings.append("irregular_column_structure")
 
     reconstructed: list[RawRowRecord] = []
+    selected_name = parser_results[0].parser_name if parser_results else ""
+    secondary_anchors = _build_secondary_row_anchors(parser_results, selected_name)
+
     for row in selected_rows:
         row = rebuild_columns_from_word_boxes(row, boundaries)
         row.metadata.setdefault("parser_sources", [row.parser_name])
+        if not _is_boundary_supported(row, secondary_anchors):
+            row.metadata["boundary_ambiguous"] = True
+            if "ambiguous_row_boundary" not in row.warnings:
+                row.warnings.append("ambiguous_row_boundary")
         reconstructed.append(row)
 
     parser_names = {r.parser_name for r in parser_results}
     if len(parser_names) > 1:
         for row in reconstructed:
             row.metadata["parser_sources"] = sorted(parser_names)
+
+    candidate_lines = max((len(r.rows) for r in parser_results), default=len(reconstructed))
+    if candidate_lines and len(reconstructed) < int(candidate_lines * (1 - ROW_DROP_WARN_THRESHOLD)):
+        warnings.append("row_count_sanity_check_failed")
+        warnings.append("large_row_count_drop")
+
+    if any("ambiguous_row_boundary" in row.warnings for row in reconstructed):
+        warnings.append("parser_conflict_detected")
 
     return reconstructed, warnings, boundaries
