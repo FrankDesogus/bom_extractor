@@ -5,10 +5,22 @@ import re
 from statistics import median
 
 from ..models import ParserPageResult, RawRowRecord
-from ..utils import looks_like_item, normalize_space
+from ..utils import looks_like_footer, looks_like_header, looks_like_item, looks_like_quantity, normalize_space
 
 ITEM_ANCHOR_PATTERN = re.compile(r"^\d{3,4}$")
 MAX_CONTINUATION_GAP = 14.0
+HEADER_START_PATTERNS = [
+    re.compile(r"\b(item|riga)\b", re.IGNORECASE),
+    re.compile(r"\b(code|codice)\b", re.IGNORECASE),
+    re.compile(r"\b(qty|quantity|quantit)\b", re.IGNORECASE),
+]
+CONTINUATION_FRAGMENT_PATTERNS = [
+    re.compile(r"^\d{1,3}[_\-/]\d{1,3}$"),
+    re.compile(r"\b(srl|spa|inc|llc|ltd|gmbh|company|co\.)\b", re.IGNORECASE),
+    re.compile(r"\b(trade|supplier|fornitore|manufacturer|manuf\.)\b", re.IGNORECASE),
+    re.compile(r"\b(note|notes|remark|remarks|spec|specification|material|finish|hardware)\b", re.IGNORECASE),
+]
+CONTINUATION_COLUMN_HINTS = ["description", "note", "trade", "supplier", "company", "manufacturer"]
 
 
 @dataclass(slots=True)
@@ -23,6 +35,9 @@ class AtomicLine:
     x_max: float
     line_density: dict[str, float]
     starts_with_item_anchor: bool = False
+    is_header_like: bool = False
+    is_footer_like: bool = False
+    continuation_candidate: bool = False
 
 
 def _significant_tokens(text: str) -> list[str]:
@@ -124,6 +139,13 @@ def _classify_item_anchor(line: AtomicLine, item_range: tuple[float, float] | No
     return item_range[0] <= x <= item_range[1]
 
 
+def _is_table_header_anchor(line: AtomicLine) -> bool:
+    if not line.text:
+        return False
+    hits = sum(1 for pattern in HEADER_START_PATTERNS if pattern.search(line.text))
+    return hits >= 2
+
+
 def _row_incomplete(row: RawRowRecord) -> bool:
     return not (row.item and row.code and row.quantity_raw)
 
@@ -136,6 +158,57 @@ def _x_aligned_for_continuation(prev: AtomicLine, current: AtomicLine, item_rang
     return overlap / prev_width > 0.35 or abs(current.x_min - prev.x_min) <= 18.0
 
 
+def _column_overlap_ratio(current: AtomicLine, item_range: tuple[float, float] | None) -> float:
+    if item_range is None:
+        return 0.5
+    non_item_start = item_range[1]
+    width = max(1.0, current.x_max - current.x_min)
+    non_item_overlap = max(0.0, current.x_max - max(non_item_start, current.x_min))
+    return non_item_overlap / width
+
+
+def _lexical_continuation_score(line: AtomicLine) -> float:
+    text = normalize_space(line.text)
+    if not text:
+        return 0.0
+    score = 0.0
+    if any(pattern.search(text) for pattern in CONTINUATION_FRAGMENT_PATTERNS):
+        score += 0.35
+    if len(line.tokens) <= 4:
+        score += 0.1
+    if re.search(r"\d{1,3}[_\-/]\d{1,3}", text):
+        score += 0.45
+    lowered = text.lower()
+    if any(hint in lowered for hint in CONTINUATION_COLUMN_HINTS):
+        score += 0.2
+    if not looks_like_quantity(text) and any(ch.isalpha() for ch in text):
+        score += 0.1
+    return min(1.0, score)
+
+
+def _continuation_candidate_score(
+    prev_line: AtomicLine | None, current: AtomicLine, item_range: tuple[float, float] | None
+) -> float:
+    if current.starts_with_item_anchor or current.is_header_like or current.is_footer_like:
+        return 0.0
+    score = 0.0
+    if prev_line is not None:
+        gap = max(0.0, current.y_top - prev_line.y_bottom)
+        if gap <= MAX_CONTINUATION_GAP:
+            score += 0.3
+        elif gap <= MAX_CONTINUATION_GAP * 1.5:
+            score += 0.1
+    overlap_ratio = _column_overlap_ratio(current, item_range)
+    if overlap_ratio >= 0.7:
+        score += 0.35
+    elif overlap_ratio >= 0.5:
+        score += 0.2
+    score += _lexical_continuation_score(current)
+    if prev_line is not None and _x_aligned_for_continuation(prev_line, current, item_range):
+        score += 0.2
+    return min(1.0, score)
+
+
 def annotate_atomic_lines(rows: list[RawRowRecord]) -> tuple[list[AtomicLine], list[str], dict[str, float | int]]:
     lines = [_to_atomic_line(r) for r in rows]
     lines.sort(key=lambda l: (l.y_top, l.row.row_index_on_page))
@@ -146,8 +219,13 @@ def annotate_atomic_lines(rows: list[RawRowRecord]) -> tuple[list[AtomicLine], l
         warnings.append("item_column_uncertain")
 
     anchor_count = 0
+    prev_line: AtomicLine | None = None
     for line in lines:
         line.starts_with_item_anchor = _classify_item_anchor(line, item_range)
+        line.is_header_like = looks_like_header(line.text) or _is_table_header_anchor(line)
+        line.is_footer_like = looks_like_footer(line.text)
+        continuation_score = _continuation_candidate_score(prev_line, line, item_range)
+        line.continuation_candidate = continuation_score >= 0.55
         line.row.metadata["atomic_line"] = {
             "tokens": list(line.tokens),
             "y_top": line.y_top,
@@ -156,11 +234,20 @@ def annotate_atomic_lines(rows: list[RawRowRecord]) -> tuple[list[AtomicLine], l
             "x_max": line.x_max,
             "line_density": dict(line.line_density),
             "starts_with_item_anchor": line.starts_with_item_anchor,
+            "is_header_like": line.is_header_like,
+            "is_footer_like": line.is_footer_like,
+            "continuation_candidate": line.continuation_candidate,
+            "continuation_candidate_score": round(continuation_score, 3),
         }
+        if line.is_header_like and "probable_header_leakage" not in line.row.warnings:
+            line.row.warnings.append("probable_header_leakage")
+        if line.continuation_candidate and "continuation_candidate" not in line.row.warnings:
+            line.row.warnings.append("continuation_candidate")
         if line.starts_with_item_anchor:
             anchor_count += 1
             if "item_anchor_detected" not in line.row.warnings:
                 line.row.warnings.append("item_anchor_detected")
+        prev_line = line
 
     if item_range is not None:
         for line in lines:
@@ -185,6 +272,82 @@ def _secondary_item_anchors(parser_results: list[ParserPageResult], selected_row
     return sorted(anchors)
 
 
+def _secondary_continuation_support(parser_results: list[ParserPageResult], current_row: RawRowRecord) -> bool:
+    if not current_row.bbox_row:
+        return False
+    y = float(current_row.bbox_row[1])
+    for result in parser_results:
+        for row in result.rows:
+            if row is current_row or not row.bbox_row:
+                continue
+            if abs(float(row.bbox_row[1]) - y) > 3.0:
+                continue
+            if row.item and looks_like_item(row.item):
+                continue
+            if any(tok in normalize_space(row.raw_text).lower() for tok in CONTINUATION_COLUMN_HINTS):
+                return True
+            if re.search(r"\d{1,3}[_\-/]\d{1,3}", normalize_space(row.raw_text)):
+                return True
+            if row.extracted_columns and not looks_like_item(row.extracted_columns[0]):
+                return True
+    return False
+
+
+def _attachment_score(
+    prev: RawRowRecord,
+    prev_line: AtomicLine,
+    current: RawRowRecord,
+    current_line: AtomicLine,
+    parser_results: list[ParserPageResult],
+) -> tuple[float, bool]:
+    gap = max(0.0, current_line.y_top - prev_line.y_bottom)
+    score = 0.0
+    if gap <= MAX_CONTINUATION_GAP:
+        score += 0.25
+    elif gap <= MAX_CONTINUATION_GAP * 1.5:
+        score += 0.1
+
+    if _x_aligned_for_continuation(prev_line, current_line, prev.metadata.get("item_column_range")):
+        score += 0.2
+    overlap_ratio = _column_overlap_ratio(current_line, prev.metadata.get("item_column_range"))
+    score += 0.2 if overlap_ratio >= 0.55 else 0.05
+
+    if _row_incomplete(prev):
+        score += 0.2
+    if prev.metadata.get("stitched_fragments"):
+        score += 0.1
+
+    score += _lexical_continuation_score(current_line) * 0.3
+
+    parser_supported = _secondary_continuation_support(parser_results, current)
+    if parser_supported:
+        score += 0.2
+
+    if current_line.is_header_like or current_line.is_footer_like:
+        score -= 0.5
+
+    return max(0.0, min(1.2, score)), parser_supported
+
+
+def _update_row_confidence(row: RawRowRecord) -> None:
+    confidence = float(row.parser_confidence)
+    cols = [normalize_space(c) for c in row.extracted_columns if normalize_space(c)]
+    has_item = bool(row.item) or any(looks_like_item(c) for c in cols[:2])
+    has_code = bool(row.code) or any(re.search(r"[A-Z]?\d{6,}", c) for c in cols)
+    has_qty_uom = bool(row.quantity_raw and row.uom)
+    if has_item and has_code and has_qty_uom:
+        confidence += 0.15
+    if "continuation_attachment_uncertain" in row.warnings:
+        confidence -= 0.2
+    if "probable_header_leakage" in row.warnings or "header_row" in row.warnings:
+        confidence -= 0.25
+    if "boundary_disagreement" in row.warnings:
+        confidence -= 0.15
+    if "parser_supported_attachment" in row.warnings:
+        confidence += 0.05
+    row.parser_confidence = max(0.0, min(1.0, round(confidence, 3)))
+
+
 def apply_row_boundary_engine(
     rows: list[RawRowRecord], parser_results: list[ParserPageResult]
 ) -> tuple[list[RawRowRecord], list[str], dict[str, float | int]]:
@@ -197,8 +360,21 @@ def apply_row_boundary_engine(
     reconstructed: list[RawRowRecord] = []
     merge_events = 0
 
+    table_started = False
     for line in lines:
         row = line.row
+        if line.is_header_like and not line.starts_with_item_anchor:
+            if _is_table_header_anchor(line):
+                table_started = True
+            reconstructed.append(row)
+            continue
+        if not table_started and line.starts_with_item_anchor:
+            table_started = True
+        if not table_started and not line.starts_with_item_anchor:
+            if "probable_header_leakage" not in row.warnings:
+                row.warnings.append("probable_header_leakage")
+            reconstructed.append(row)
+            continue
         if not reconstructed:
             reconstructed.append(row)
             continue
@@ -215,15 +391,19 @@ def apply_row_boundary_engine(
             reconstructed.append(row)
             continue
 
-        gap = max(0.0, line.y_top - prev_line.y_bottom)
-        can_merge = (
-            not line.starts_with_item_anchor
-            and gap <= MAX_CONTINUATION_GAP
-            and _x_aligned_for_continuation(prev_line, line, prev.metadata.get("item_column_range"))
-            and _row_incomplete(prev)
-        )
+        if "probable_header_leakage" in prev.warnings or "header_row" in prev.warnings:
+            reconstructed.append(row)
+            continue
 
-        if not can_merge:
+        score, parser_supported = _attachment_score(prev, prev_line, row, line, parser_results)
+        if score < 0.55:
+            if line.continuation_candidate and "continuation_attachment_uncertain" not in row.warnings:
+                row.warnings.append("continuation_attachment_uncertain")
+            reconstructed.append(row)
+            continue
+        if 0.55 <= score < 0.72:
+            if "continuation_attachment_uncertain" not in row.warnings:
+                row.warnings.append("continuation_attachment_uncertain")
             reconstructed.append(row)
             continue
 
@@ -231,6 +411,7 @@ def apply_row_boundary_engine(
             "raw_text": row.raw_text,
             "columns": list(row.extracted_columns),
             "row_index_on_page": row.row_index_on_page,
+            "attachment_score": round(score, 3),
         })
         prev.metadata.setdefault("raw_fragments", [prev.raw_text])
         prev.metadata["raw_fragments"].append(row.raw_text)
@@ -243,9 +424,11 @@ def apply_row_boundary_engine(
                 max(prev.bbox_row[2], row.bbox_row[2]),
                 max(prev.bbox_row[3], row.bbox_row[3]),
             )
-        for tag in ("row_stitched", "multiline_row_detected", "possible_fragmentation"):
+        for tag in ("row_stitched", "multiline_row_detected", "possible_fragmentation", "continuation_attached"):
             if tag not in prev.warnings:
                 prev.warnings.append(tag)
+        if parser_supported and "parser_supported_attachment" not in prev.warnings:
+            prev.warnings.append("parser_supported_attachment")
         merge_events += 1
 
     if secondary_anchors:
@@ -262,9 +445,16 @@ def apply_row_boundary_engine(
 
     for row in reconstructed:
         text = normalize_space(" ".join([row.raw_text, *row.extracted_columns]))
-        item_tokens = [tok for tok in _significant_tokens(text) if looks_like_item(tok)]
+        tokens = _significant_tokens(text)
+        item_tokens = [tok for tok in tokens if looks_like_item(tok)]
+        qty_like_tokens = [tok for tok in tokens if looks_like_quantity(tok)]
+        ref_fragments = [tok for tok in tokens if re.match(r"^\d{1,3}[_\-/]\d{1,3}$", tok)]
         if len(item_tokens) > 1 and "multi_item_row_detected" not in row.warnings:
-            row.warnings.append("multi_item_row_detected")
+            if len(item_tokens) > (len(qty_like_tokens) + len(ref_fragments) + 1):
+                row.warnings.append("multi_item_row_detected")
+
+    for row in reconstructed:
+        _update_row_confidence(row)
 
     metrics["reconstructed_row_count"] = len(reconstructed)
     metrics["merge_ratio"] = merge_events / max(1, len(lines))
