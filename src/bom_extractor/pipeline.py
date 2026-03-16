@@ -118,6 +118,10 @@ class ExtractionPipeline:
                 summary.pages.append(page_output)
                 summary.pages_seen += 1
             summary.rows_emitted = len(rows)
+            page_warnings = [w for p in summary.pages for w in p.warnings]
+            for doc_warning in ("excessive_stitching_detected", "large_row_count_drop", "layout_low_confidence", "parser_conflict_detected"):
+                if doc_warning in page_warnings and doc_warning not in summary.warnings:
+                    summary.warnings.append(doc_warning)
             return rows, summary
         except Exception as exc:
             summary.errors.append(f"document_error:{type(exc).__name__}:{exc}")
@@ -156,6 +160,7 @@ class ExtractionPipeline:
             page_output.warnings.append("parser_disagreement")
 
         normalized: list[RawRowRecord] = []
+        candidate_lines = max((len(r.rows) for r in parser_results), default=len(selected.rows))
         reconstructed_rows, structure_warnings, boundaries = apply_structure_assisted_reconstruction(selected.rows, parser_results)
         for warning in structure_warnings:
             if warning not in page_output.warnings:
@@ -170,6 +175,21 @@ class ExtractionPipeline:
             normalized.append(row)
 
         normalized = stitch_multiline_rows(normalized)
+
+        if candidate_lines:
+            drop_ratio = max(0.0, 1 - (len(normalized) / candidate_lines))
+            if drop_ratio > 0.35 and "row_count_sanity_check_failed" not in page_output.warnings:
+                page_output.warnings.append("row_count_sanity_check_failed")
+            if drop_ratio > 0.5 and "large_row_count_drop" not in page_output.warnings:
+                page_output.warnings.append("large_row_count_drop")
+
+        if any("excessive_row_merge_detected" in r.warnings for r in normalized) and "excessive_stitching_detected" not in page_output.warnings:
+            page_output.warnings.append("excessive_stitching_detected")
+        if page_output.layout_model.get("layout_confidence", 1.0) < 0.45 and "layout_low_confidence" not in page_output.warnings:
+            page_output.warnings.append("layout_low_confidence")
+        if any("ambiguous_row_boundary" in r.warnings for r in normalized) and "parser_conflict_detected" not in page_output.warnings:
+            page_output.warnings.append("parser_conflict_detected")
+
         return self._decontaminate_page_rows(normalized)
 
     def _decontaminate_page_rows(self, rows: list[RawRowRecord]) -> list[RawRowRecord]:
