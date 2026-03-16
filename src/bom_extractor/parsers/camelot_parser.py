@@ -64,5 +64,6 @@ class CamelotLatticeParser(BasePageParser):
                         },
                     )
                 )
+        result.metadata["column_count_hint"] = max((len(r.extracted_columns) for r in result.rows), default=0)
         result.confidence = 0.86 if result.rows else 0.0
         return result

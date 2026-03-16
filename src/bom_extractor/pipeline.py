@@ -7,8 +7,9 @@ import fitz
 from .config import ExtractionConfig
 from .fusion import PageResultFuser
 from .logging_utils import configure_logging
-from .models import DocumentSummary, PageContext, RawRowRecord
+from .models import DocumentSummary, PageContext, PageOutput, RawRowRecord, RowOutput
 from .normalizer import stitch_multiline_rows, weak_map_columns
+from .normalization import apply_structure_assisted_reconstruction
 from .parsers.camelot_parser import CamelotLatticeParser
 from .parsers.ocr_parser import OCRFallbackParser
 from .parsers.pdfplumber_parser import PdfPlumberTableParser
@@ -59,6 +60,8 @@ class ExtractionPipeline:
             errors=[e for s in summaries for e in s.errors],
             fusion_decisions=[d for s in summaries for d in s.fusion_decisions],
             page_layouts=[p for s in summaries for p in s.page_layouts],
+            pages=[p for s in summaries for p in s.pages],
+            document_metadata={"documents": [s.document_metadata for s in summaries]},
         )
         self.storage.write_jsonl(all_rows)
         if self.config.write_csv:
@@ -71,7 +74,12 @@ class ExtractionPipeline:
     def parse_document(self, pdf_path: Path) -> tuple[list[RawRowRecord], DocumentSummary]:
         file_hash = sha256_file(pdf_path)
         document_id = f"{pdf_path.stem}:{file_hash[:12]}"
-        summary = DocumentSummary(source_file=str(pdf_path), source_file_hash=file_hash, document_id=document_id)
+        summary = DocumentSummary(
+            source_file=str(pdf_path),
+            source_file_hash=file_hash,
+            document_id=document_id,
+            document_metadata={"source_file": str(pdf_path), "source_file_hash": file_hash, "document_id": document_id},
+        )
         rows: list[RawRowRecord] = []
 
         doc = fitz.open(pdf_path)
@@ -91,14 +99,23 @@ class ExtractionPipeline:
                     raw_page_text=normalize_space(page.get_text("text")),
                 )
                 page_ctx.layout_metadata = self._build_page_layout(page, page_ctx)
+                page_output = PageOutput(
+                    page_number=page_ctx.page_number,
+                    header_fields_raw=page_ctx.layout_metadata.get("header_lines", []),
+                    footer_fields_raw=page_ctx.layout_metadata.get("footer_lines", []),
+                    layout_model=page_ctx.layout_metadata,
+                    warnings=list(page_ctx.layout_metadata.get("layout_warnings", [])),
+                )
                 summary.page_layouts.append({
                     "page_number": page_ctx.page_number,
-                    "header_fields_raw": page_ctx.layout_metadata.get("header_lines", []),
-                    "footer_fields_raw": page_ctx.layout_metadata.get("footer_lines", []),
-                    "page_warnings": page_ctx.layout_metadata.get("layout_warnings", []),
+                    "header_fields_raw": page_output.header_fields_raw,
+                    "footer_fields_raw": page_output.footer_fields_raw,
+                    "page_warnings": page_output.warnings,
                 })
-                page_rows = self._parse_page(pdf_path, page_ctx, summary)
+                page_rows = self._parse_page(pdf_path, page_ctx, summary, page_output)
                 rows.extend(page_rows)
+                page_output.reconstructed_table = [self._to_row_output(r) for r in page_rows]
+                summary.pages.append(page_output)
                 summary.pages_seen += 1
             summary.rows_emitted = len(rows)
             return rows, summary
@@ -111,7 +128,7 @@ class ExtractionPipeline:
         finally:
             doc.close()
 
-    def _parse_page(self, pdf_path: Path, page_ctx: PageContext, summary: DocumentSummary) -> list[RawRowRecord]:
+    def _parse_page(self, pdf_path: Path, page_ctx: PageContext, summary: DocumentSummary, page_output: PageOutput) -> list[RawRowRecord]:
         parser_results = []
         for parser in self.parsers:
             try:
@@ -132,26 +149,24 @@ class ExtractionPipeline:
 
         selected, decision = self.fuser.choose(page_ctx.page_number, parser_results)
         summary.fusion_decisions.append(decision)
-        if summary.page_layouts:
-            summary.page_layouts[-1]["page_parser_decision"] = decision.model_dump()
+        page_output.parser_decision = decision.model_dump()
         summary.parser_usage[decision.selected_parser] = summary.parser_usage.get(decision.selected_parser, 0) + 1
 
-        self.logger.info(
-            "page_parser_selected",
-            extra={"structured": {
-                "source_file": page_ctx.source_file,
-                "page_number": page_ctx.page_number,
-                "selected_parser": decision.selected_parser,
-                "selected_score": decision.selected_score,
-                "disagreement": decision.disagreement,
-                "scores": [s.model_dump() for s in decision.score_details],
-            }},
-        )
+        if decision.disagreement:
+            page_output.warnings.append("parser_disagreement")
 
         normalized: list[RawRowRecord] = []
-        for row in selected.rows:
+        reconstructed_rows, structure_warnings, boundaries = apply_structure_assisted_reconstruction(selected.rows, parser_results)
+        for warning in structure_warnings:
+            if warning not in page_output.warnings:
+                page_output.warnings.append(warning)
+        page_output.layout_model["column_boundaries"] = boundaries
+
+        for row in reconstructed_rows:
             row = weak_map_columns(row)
             row = validate_row(row)
+            if decision.disagreement and "parser_disagreement" not in row.warnings:
+                row.warnings.append("parser_disagreement")
             normalized.append(row)
 
         normalized = stitch_multiline_rows(normalized)
@@ -161,10 +176,14 @@ class ExtractionPipeline:
         if not rows:
             return rows
         for row in rows:
-            if "header_row" in row.warnings and "probable_header_contamination" not in row.warnings:
-                row.warnings.append("probable_header_contamination")
-            if "footer_row" in row.warnings and "probable_footer_contamination" not in row.warnings:
-                row.warnings.append("probable_footer_contamination")
+            if "header_row" in row.warnings:
+                for flag in ("probable_header_contamination", "header_contamination_detected"):
+                    if flag not in row.warnings:
+                        row.warnings.append(flag)
+            if "footer_row" in row.warnings:
+                for flag in ("probable_footer_contamination", "footer_contamination_detected"):
+                    if flag not in row.warnings:
+                        row.warnings.append(flag)
         return rows
 
     def _build_page_layout(self, page: fitz.Page, page_ctx: PageContext) -> dict:
@@ -177,10 +196,25 @@ class ExtractionPipeline:
             "header_lines": layout.header_lines,
             "table_lines": layout.table_lines,
             "footer_lines": layout.footer_lines,
+            "background_noise_lines": layout.background_noise_lines,
             "layout_warnings": layout.warnings,
+            "layout_confidence": layout.confidence,
             "page_width": page_ctx.page_width,
             "page_height": page_ctx.page_height,
         }
+
+    def _to_row_output(self, row: RawRowRecord) -> RowOutput:
+        return RowOutput(
+            source_file=row.source_file,
+            page_number=row.page_number,
+            row_index=row.row_index_on_page,
+            raw_fragments=row.metadata.get("raw_fragments", list(row.extracted_columns)),
+            reconstructed_text=row.raw_text,
+            extracted_columns=row.extracted_columns,
+            parser_sources=row.metadata.get("parser_sources", [row.parser_name]),
+            confidence=row.parser_confidence,
+            warnings=row.warnings,
+        )
 
     @staticmethod
     def _merge_parser_usage(summaries: list[DocumentSummary]) -> dict[str, int]:
