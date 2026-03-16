@@ -10,6 +10,7 @@ from .logging_utils import configure_logging
 from .models import DocumentSummary, PageContext, PageOutput, RawRowRecord, RowOutput
 from .normalizer import stitch_multiline_rows, weak_map_columns
 from .normalization import apply_structure_assisted_reconstruction
+from .normalization.row_boundary_engine import apply_row_boundary_engine
 from .parsers.camelot_parser import CamelotLatticeParser
 from .parsers.ocr_parser import OCRFallbackParser
 from .parsers.pdfplumber_parser import PdfPlumberTableParser
@@ -174,7 +175,13 @@ class ExtractionPipeline:
                 row.warnings.append("parser_disagreement")
             normalized.append(row)
 
-        normalized = stitch_multiline_rows(normalized)
+        boundary_rows, boundary_warnings, boundary_metrics = apply_row_boundary_engine(normalized, parser_results)
+        normalized = stitch_multiline_rows(boundary_rows)
+
+        for warning in boundary_warnings:
+            if warning not in page_output.warnings:
+                page_output.warnings.append(warning)
+        page_output.layout_model["row_boundary_metrics"] = boundary_metrics
 
         if candidate_lines:
             drop_ratio = max(0.0, 1 - (len(normalized) / candidate_lines))
