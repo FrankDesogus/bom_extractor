@@ -34,12 +34,14 @@ class PyMuPDFWordsParser(BasePageParser):
                 )
             buckets: dict[int, list[tuple]] = defaultdict(list)
             skipped_header_footer = 0
+            x_hints: list[float] = []
             for w in words:
                 x0, y0, x1, y1, text, *_ = w
                 if y0 <= zones.header_cutoff or y1 >= zones.footer_cutoff:
                     skipped_header_footer += 1
                     continue
                 buckets[round(y0 / 3)].append((x0, y0, x1, y1, text))
+                x_hints.append(float(x0))
 
             rows: list[RawRowRecord] = []
             for row_idx, bucket_key in enumerate(sorted(buckets), start=1):
@@ -66,6 +68,7 @@ class PyMuPDFWordsParser(BasePageParser):
                         parser_confidence=0.55,
                         parser_name=self.parser_name,
                         bbox_row=bbox,
+                        metadata={"word_boxes": [{"x0": c[0], "y0": c[1], "x1": c[2], "y1": c[3], "text": normalize_space(c[4])} for c in cells]},
                     )
                 )
 
@@ -75,6 +78,8 @@ class PyMuPDFWordsParser(BasePageParser):
                     "zone_header_cutoff": zones.header_cutoff,
                     "zone_footer_cutoff": zones.footer_cutoff,
                     "header_footer_words_skipped": skipped_header_footer,
+                    "column_x_hints": sorted(x_hints),
+                    "column_count_hint": max((len(r.extracted_columns) for r in rows), default=0),
                 }
             )
             result.confidence = 0.75 if rows else 0.0

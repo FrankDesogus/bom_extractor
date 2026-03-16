@@ -70,6 +70,28 @@ class PageFusionDecision(BaseModel):
     disagreement: bool = False
 
 
+class RowOutput(BaseModel):
+    source_file: str
+    page_number: int
+    row_index: int
+    raw_fragments: list[str] = Field(default_factory=list)
+    reconstructed_text: str = ""
+    extracted_columns: list[str] = Field(default_factory=list)
+    parser_sources: list[str] = Field(default_factory=list)
+    confidence: float = 0.0
+    warnings: list[str] = Field(default_factory=list)
+
+
+class PageOutput(BaseModel):
+    page_number: int
+    header_fields_raw: list[str] = Field(default_factory=list)
+    footer_fields_raw: list[str] = Field(default_factory=list)
+    reconstructed_table: list[RowOutput] = Field(default_factory=list)
+    parser_decision: dict[str, Any] = Field(default_factory=dict)
+    layout_model: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class DocumentSummary(BaseModel):
     source_file: str
     source_file_hash: str
@@ -81,3 +103,5 @@ class DocumentSummary(BaseModel):
     errors: list[str] = Field(default_factory=list)
     fusion_decisions: list[PageFusionDecision] = Field(default_factory=list)
     page_layouts: list[dict[str, Any]] = Field(default_factory=list)
+    pages: list[PageOutput] = Field(default_factory=list)
+    document_metadata: dict[str, Any] = Field(default_factory=dict)
