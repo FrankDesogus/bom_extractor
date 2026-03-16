@@ -43,6 +43,15 @@ def _new_item_appears(row: RawRowRecord) -> bool:
     return looks_like_item(row.extracted_columns[0])
 
 
+
+
+def _starts_with_item_anchor(row: RawRowRecord) -> bool:
+    atomic = row.metadata.get("atomic_line") if isinstance(row.metadata, dict) else None
+    if isinstance(atomic, dict) and atomic.get("starts_with_item_anchor") is True:
+        return True
+    return _new_item_appears(row)
+
+
 def stitch_multiline_rows(rows: list[RawRowRecord]) -> list[RawRowRecord]:
     """Merge likely continuation rows conservatively while preserving evidence."""
     if not rows:
@@ -60,7 +69,9 @@ def stitch_multiline_rows(rows: list[RawRowRecord]) -> list[RawRowRecord]:
 
         if stitched and continuation:
             prev = stitched[-1]
-            if _new_item_appears(row):
+            if _starts_with_item_anchor(row):
+                if "hard_merge_block_item_anchor" not in row.warnings:
+                    row.warnings.append("hard_merge_block_item_anchor")
                 stitched.append(row)
                 continue
             if _row_has_full_pattern(prev):
@@ -85,7 +96,14 @@ def stitch_multiline_rows(rows: list[RawRowRecord]) -> list[RawRowRecord]:
 
             aligned = _vertically_aligned(prev, row)
             if not aligned and row.bbox_row and prev.bbox_row:
-                prev.warnings.append("ambiguous_alignment")
+                if "ambiguous_alignment" not in prev.warnings:
+                    prev.warnings.append("ambiguous_alignment")
+                stitched.append(row)
+                continue
+
+            if "boundary_disagreement" in row.warnings:
+                stitched.append(row)
+                continue
 
             fragments.append(
                 {

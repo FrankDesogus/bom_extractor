@@ -36,15 +36,14 @@ def test_stitch_preserves_fragment_evidence():
     assert out[0].metadata.get("stitched_fragments")
 
 
-def test_stitch_marks_ambiguous_alignment_when_bboxes_do_not_overlap():
+def test_stitch_does_not_merge_when_alignment_is_ambiguous():
     rows = [
         _row(1, "0010 BASE", ["0010", "BASE"], bbox=(10, 100, 120, 108)),
         _row(2, "WRAPPED", ["WRAPPED"], ["continuation_candidate"], bbox=(300, 112, 380, 120)),
     ]
     out = stitch_multiline_rows(rows)
-    assert len(out) == 1
+    assert len(out) == 2
     assert "ambiguous_alignment" in out[0].warnings
-    assert "possible_fragmentation" in out[0].warnings
 
 
 def test_does_not_stitch_when_new_item_token_appears():
