@@ -129,3 +129,38 @@ def test_continuation_targets_company_or_notes_by_lexical_shape():
     assert len(out) == 1
     assert out[0].company_name
     assert "ACME" in out[0].company_name
+
+
+def test_short_reference_fragment_routes_to_notes():
+    rows = [
+        _row(1, "0010 TYPE E0181296 01 NR 2", ["0010"], bbox=(10, 100, 220, 108), item="0010", code="E0181296", revision="01"),
+        _row(2, "10_35", ["10_35"], ["continuation_candidate"], bbox=(160, 111, 210, 119)),
+    ]
+    out = stitch_multiline_rows(rows)
+    assert len(out) == 1
+    assert out[0].notes
+    assert "10_35" in out[0].notes
+
+
+def test_continuation_does_not_cross_later_anchor_row():
+    rows = [
+        _row(1, "0010 FIRST", ["0010", "FIRST"], bbox=(10, 100, 220, 108), item="0010", code="E0181296", revision="01"),
+        _row(2, "0020 SECOND", ["0020", "SECOND"], bbox=(10, 112, 220, 120), item="0020", code="E0181297", revision="01"),
+        _row(3, "supplier BETA SRL", ["supplier", "BETA", "SRL"], ["continuation_candidate"], bbox=(100, 123, 240, 131)),
+    ]
+    out = stitch_multiline_rows(rows)
+    assert len(out) == 2
+    assert out[0].item == "0010"
+    assert out[1].item == "0020"
+    assert out[1].company_name and "BETA" in out[1].company_name
+
+
+def test_orphan_continuation_fragment_is_preserved_with_warning():
+    rows = [
+        _row(1, "0010 BASE", ["0010", "BASE"], bbox=(10, 100, 120, 108), item="0010", code="E0181296", revision="01"),
+        _row(2, "supplier ACME SRL", ["supplier", "ACME", "SRL"], ["continuation_candidate"], bbox=(350, 150, 450, 158)),
+    ]
+    out = stitch_multiline_rows(rows)
+    assert len(out) == 2
+    assert "orphan_continuation_fragment" in out[1].warnings
+    assert "parent_row_uncertain" in out[1].warnings

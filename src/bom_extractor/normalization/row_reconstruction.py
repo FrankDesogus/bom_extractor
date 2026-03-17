@@ -7,6 +7,7 @@ from ..utils import looks_like_code, looks_like_item, looks_like_quantity, norma
 
 MAX_VERTICAL_GAP = 18.0
 MAX_STITCHED_FRAGMENTS = 3
+MAX_PARENT_LOOKBACK = 6
 
 
 @dataclass(frozen=True)
@@ -108,6 +109,98 @@ def _guess_expandable_field_target(prev: RawRowRecord, row: RawRowRecord) -> str
     return "description"
 
 
+def _continuation_candidate(row: RawRowRecord) -> bool:
+    atomic = row.metadata.get("atomic_line") if isinstance(row.metadata, dict) else None
+    if isinstance(atomic, dict):
+        if atomic.get("starts_with_item_anchor") is True:
+            return False
+        if atomic.get("is_header_like") is True or atomic.get("is_footer_like") is True:
+            return False
+        if atomic.get("continuation_candidate") is True:
+            return True
+    if "header_row" in row.warnings or "footer_row" in row.warnings:
+        return False
+    if _starts_with_item_anchor(row):
+        return False
+    return "continuation_candidate" in row.warnings
+
+
+def _anchor_like_signals(row: RawRowRecord) -> int:
+    cols = [normalize_space(c) for c in row.extracted_columns if normalize_space(c)]
+    score = 0
+    if row.item or (cols and looks_like_item(cols[0])):
+        score += 2
+    if row.code or any(looks_like_code(c) for c in cols):
+        score += 1
+    if row.revision:
+        score += 1
+    if row.uom:
+        score += 1
+    if row.quantity_raw or any(looks_like_quantity(c) for c in cols):
+        score += 1
+    return score
+
+
+def _lane_compatibility(parent: RawRowRecord, row: RawRowRecord) -> float:
+    if not parent.bbox_row or not row.bbox_row:
+        return 0.5
+    row_center = (row.bbox_row[0] + row.bbox_row[2]) / 2
+    parent_left, _, parent_right, _ = parent.bbox_row
+    if row_center < parent_left or row_center > parent_right + 80:
+        return 0.0
+    span = max(1.0, parent_right - parent_left)
+    rel = (row_center - parent_left) / span
+    return 1.0 if 0.2 <= rel <= 1.1 else 0.4
+
+
+def _choose_parent_index(stitched: list[RawRowRecord], row: RawRowRecord) -> tuple[int | None, float]:
+    best_idx: int | None = None
+    best_score = -1.0
+    lookback = 0
+    for idx in range(len(stitched) - 1, -1, -1):
+        parent = stitched[idx]
+        lookback += 1
+        if lookback > MAX_PARENT_LOOKBACK:
+            break
+        if parent.page_number != row.page_number:
+            break
+        gap = _vertical_gap(parent, row)
+        if gap is not None and gap > MAX_VERTICAL_GAP * 1.6:
+            continue
+        lane_score = _lane_compatibility(parent, row)
+        if lane_score <= 0:
+            continue
+        completeness = sum(1 for v in _row_anchor_status(parent).values() if v)
+        score = 0.0
+        if gap is not None:
+            score += max(0.0, 1.0 - (gap / (MAX_VERTICAL_GAP * 1.6))) * 0.35
+        score += (1.0 / max(1, len(stitched) - idx)) * 0.2
+        score += lane_score * 0.2
+        score += min(1.0, completeness / 5.0) * 0.25
+        if score > best_score:
+            best_score = score
+            best_idx = idx
+        if _starts_with_item_anchor(parent):
+            break
+    return best_idx, best_score
+
+
+def _route_expandable_field(parent: RawRowRecord, row: RawRowRecord) -> str:
+    text = normalize_space(row.raw_text)
+    lowered = text.lower()
+    if any(k in lowered for k in ("supplier", "company", "fornitore", "srl", "spa", "inc", "gmbh", "ltd", "llc")):
+        return "company_name"
+    if any(k in lowered for k in ("trade", "marca", "brand", "manufacturer")):
+        return "trade_name"
+    if any(k in lowered for k in ("note", "remark", "spec", "finish", "hardware")):
+        return "notes"
+    if "_" in text and any(ch.isdigit() for ch in text):
+        return "notes"
+    if parent.notes and (len(text.split()) <= 5 or text[:1].islower()):
+        return "notes"
+    return _guess_expandable_field_target(parent, row)
+
+
 def _merge_continuation_by_roles(prev: RawRowRecord, row: RawRowRecord) -> None:
     anchor_status = _row_anchor_status(prev)
     locked = _anchor_fields_locked(anchor_status)
@@ -138,7 +231,7 @@ def _merge_continuation_by_roles(prev: RawRowRecord, row: RawRowRecord) -> None:
             continue
         setattr(prev, field, incoming)
 
-    target = _guess_expandable_field_target(prev, row)
+    target = _route_expandable_field(prev, row)
     if target not in ROLE_MODEL.multi_line_expandable_fields:
         target = "description"
     incoming_text = normalize_space(row.raw_text)
@@ -155,6 +248,32 @@ def _merge_continuation_by_roles(prev: RawRowRecord, row: RawRowRecord) -> None:
         prev.warnings.append("continuation_attachment_uncertain")
 
 
+
+def continuation_metrics(rows: list[RawRowRecord]) -> dict[str, float | int]:
+    attached = 0
+    isolated = 0
+    uncertain = 0
+    duplication = 0
+    for row in rows:
+        fragments = row.metadata.get("stitched_fragments", []) if isinstance(row.metadata, dict) else []
+        if isinstance(fragments, list):
+            attached += len(fragments)
+        if "continuation_candidate" in row.warnings and not fragments and "parent_row_attached" not in row.warnings:
+            isolated += 1
+        if "continuation_attachment_uncertain" in row.warnings or "parent_row_uncertain" in row.warnings:
+            uncertain += 1
+        if "anchor_field_duplication_suspected" in row.warnings:
+            duplication += 1
+
+    denom = max(1, attached + isolated)
+    return {
+        "isolated_continuation_count": isolated,
+        "attached_continuation_count": attached,
+        "uncertain_continuation_count": uncertain,
+        "continuation_attachment_rate": round(attached / denom, 3),
+        "anchor_field_duplication_events": duplication,
+    }
+
 def stitch_multiline_rows(rows: list[RawRowRecord]) -> list[RawRowRecord]:
     """Merge likely continuation rows conservatively while preserving evidence."""
     if not rows:
@@ -164,19 +283,37 @@ def stitch_multiline_rows(rows: list[RawRowRecord]) -> list[RawRowRecord]:
     merge_events = 0
 
     for row in rows:
-        first_col = row.extracted_columns[0] if row.extracted_columns else None
-        continuation = (
-            "continuation_candidate" in row.warnings
-            or (not looks_like_item(first_col) and "header_row" not in row.warnings and "footer_row" not in row.warnings)
-        )
+        continuation = _continuation_candidate(row)
+        if continuation and _anchor_like_signals(row) >= 4:
+            if "anchor_field_duplication_suspected" not in row.warnings:
+                row.warnings.append("anchor_field_duplication_suspected")
+            if "continuation_attachment_uncertain" not in row.warnings:
+                row.warnings.append("continuation_attachment_uncertain")
 
         if stitched and continuation:
-            prev = stitched[-1]
             if _starts_with_item_anchor(row):
                 if "hard_merge_block_item_anchor" not in row.warnings:
                     row.warnings.append("hard_merge_block_item_anchor")
                 stitched.append(row)
                 continue
+
+            parent_idx, parent_score = _choose_parent_index(stitched, row)
+            if parent_idx is None or parent_score < 0.52:
+                fallback_prev = stitched[-1]
+                gap = _vertical_gap(fallback_prev, row)
+                if gap is not None and gap > MAX_VERTICAL_GAP and "merge_blocked_vertical_gap" not in fallback_prev.warnings:
+                    fallback_prev.warnings.append("merge_blocked_vertical_gap")
+                elif fallback_prev.bbox_row and row.bbox_row and not _vertically_aligned(fallback_prev, row):
+                    if "ambiguous_alignment" not in fallback_prev.warnings:
+                        fallback_prev.warnings.append("ambiguous_alignment")
+                if "orphan_continuation_fragment" not in row.warnings:
+                    row.warnings.append("orphan_continuation_fragment")
+                if "parent_row_uncertain" not in row.warnings:
+                    row.warnings.append("parent_row_uncertain")
+                stitched.append(row)
+                continue
+            prev = stitched[parent_idx]
+
             if _row_has_full_pattern(prev):
                 if "merge_blocked_full_pattern" not in prev.warnings:
                     prev.warnings.append("merge_blocked_full_pattern")
@@ -192,11 +329,14 @@ def stitch_multiline_rows(rows: list[RawRowRecord]) -> list[RawRowRecord]:
             if gap is not None and gap > MAX_VERTICAL_GAP:
                 if "merge_blocked_vertical_gap" not in prev.warnings:
                     prev.warnings.append("merge_blocked_vertical_gap")
+                if "parent_row_uncertain" not in row.warnings:
+                    row.warnings.append("parent_row_uncertain")
                 stitched.append(row)
                 continue
 
             aligned = _vertically_aligned(prev, row)
-            if not aligned and row.bbox_row and prev.bbox_row:
+            lexical_reference = any(ch.isdigit() for ch in row.raw_text) and any(sep in row.raw_text for sep in ("_", "-", "/"))
+            if not aligned and row.bbox_row and prev.bbox_row and not lexical_reference and _lane_compatibility(prev, row) < 0.8:
                 if "ambiguous_alignment" not in prev.warnings:
                     prev.warnings.append("ambiguous_alignment")
                 stitched.append(row)
@@ -218,6 +358,10 @@ def stitch_multiline_rows(rows: list[RawRowRecord]) -> list[RawRowRecord]:
             prev.raw_text = normalize_space(f"{prev.raw_text} {row.raw_text}")
             prev.extracted_columns.extend(row.extracted_columns)
             _merge_continuation_by_roles(prev, row)
+            if "parent_row_attached" not in prev.warnings:
+                prev.warnings.append("parent_row_attached")
+            if "continuation_candidate" not in row.warnings:
+                row.warnings.append("continuation_candidate")
             if prev.bbox_row and row.bbox_row:
                 prev.bbox_row = (
                     min(prev.bbox_row[0], row.bbox_row[0]),
