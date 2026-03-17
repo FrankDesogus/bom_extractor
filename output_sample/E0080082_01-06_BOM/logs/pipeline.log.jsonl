@@ -1,2 +1,0 @@
-{"level": "INFO", "logger": "bom_extractor", "message": "parser completed", "source_file": "/mnt/data/E0080082 01-06_BOM.pdf", "page_number": 1, "parser_name": "camelot_lattice", "rows": 1, "confidence": 0.86, "warnings": [], "errors": []}
-{"level": "INFO", "logger": "bom_extractor", "message": "parser completed", "source_file": "/mnt/data/E0080082 01-06_BOM.pdf", "page_number": 1, "parser_name": "pdfplumber_table", "rows": 12, "confidence": 0.78, "warnings": [], "errors": []}

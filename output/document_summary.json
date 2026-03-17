@@ -7,6 +7,2724 @@
   "parser_usage": {
     "pymupdf_words": 2
   },
-  "warnings": [],
-  "errors": []
+  "warnings": [
+    "excessive_stitching_detected"
+  ],
+  "errors": [],
+  "fusion_decisions": [
+    {
+      "page_number": 1,
+      "selected_parser": "pymupdf_words",
+      "selected_score": 0.624,
+      "score_details": [
+        {
+          "parser_name": "pymupdf_words",
+          "final_score": 0.624,
+          "row_count": 52,
+          "item_ratio": 0.5962,
+          "quantity_ratio": 0.6154,
+          "header_ratio": 0.0385,
+          "footer_ratio": 0.0,
+          "fragmentation_penalty": 0.0192,
+          "reasons": [
+            "base_confidence=0.75",
+            "item_ratio=0.60",
+            "quantity_ratio=0.62",
+            "header_ratio=0.04",
+            "footer_ratio=0.00",
+            "fragmentation=0.02"
+          ]
+        },
+        {
+          "parser_name": "pdfplumber_table",
+          "final_score": 0.3058,
+          "row_count": 11,
+          "item_ratio": 0.0,
+          "quantity_ratio": 0.0909,
+          "header_ratio": 0.1818,
+          "footer_ratio": 0.0,
+          "fragmentation_penalty": 0.0,
+          "reasons": [
+            "base_confidence=0.80",
+            "item_ratio=0.00",
+            "quantity_ratio=0.09",
+            "header_ratio=0.18",
+            "footer_ratio=0.00",
+            "fragmentation=0.00",
+            "low_final_score"
+          ]
+        },
+        {
+          "parser_name": "camelot_lattice",
+          "final_score": 0.105,
+          "row_count": 1,
+          "item_ratio": 0.0,
+          "quantity_ratio": 0.0,
+          "header_ratio": 1.0,
+          "footer_ratio": 0.0,
+          "fragmentation_penalty": 0.0,
+          "reasons": [
+            "base_confidence=0.86",
+            "item_ratio=0.00",
+            "quantity_ratio=0.00",
+            "header_ratio=1.00",
+            "footer_ratio=0.00",
+            "fragmentation=0.00",
+            "low_final_score"
+          ]
+        },
+        {
+          "parser_name": "ocr_fallback",
+          "final_score": 0.0,
+          "row_count": 0,
+          "item_ratio": 0.0,
+          "quantity_ratio": 0.0,
+          "header_ratio": 0.0,
+          "footer_ratio": 0.0,
+          "fragmentation_penalty": 0.0,
+          "reasons": [
+            "no_rows"
+          ]
+        }
+      ],
+      "disagreement": false
+    },
+    {
+      "page_number": 2,
+      "selected_parser": "pymupdf_words",
+      "selected_score": 0.7125,
+      "score_details": [
+        {
+          "parser_name": "pymupdf_words",
+          "final_score": 0.7125,
+          "row_count": 34,
+          "item_ratio": 0.7647,
+          "quantity_ratio": 0.7941,
+          "header_ratio": 0.0,
+          "footer_ratio": 0.0,
+          "fragmentation_penalty": 0.0,
+          "reasons": [
+            "base_confidence=0.75",
+            "item_ratio=0.76",
+            "quantity_ratio=0.79",
+            "header_ratio=0.00",
+            "footer_ratio=0.00",
+            "fragmentation=0.00"
+          ]
+        },
+        {
+          "parser_name": "pdfplumber_table",
+          "final_score": 0.6984,
+          "row_count": 38,
+          "item_ratio": 0.6842,
+          "quantity_ratio": 0.7368,
+          "header_ratio": 0.0,
+          "footer_ratio": 0.0,
+          "fragmentation_penalty": 0.0,
+          "reasons": [
+            "base_confidence=0.80",
+            "item_ratio=0.68",
+            "quantity_ratio=0.74",
+            "header_ratio=0.00",
+            "footer_ratio=0.00",
+            "fragmentation=0.00"
+          ]
+        },
+        {
+          "parser_name": "camelot_lattice",
+          "final_score": 0.305,
+          "row_count": 1,
+          "item_ratio": 0.0,
+          "quantity_ratio": 0.0,
+          "header_ratio": 0.0,
+          "footer_ratio": 0.0,
+          "fragmentation_penalty": 0.0,
+          "reasons": [
+            "base_confidence=0.86",
+            "item_ratio=0.00",
+            "quantity_ratio=0.00",
+            "header_ratio=0.00",
+            "footer_ratio=0.00",
+            "fragmentation=0.00",
+            "low_final_score"
+          ]
+        },
+        {
+          "parser_name": "ocr_fallback",
+          "final_score": 0.0,
+          "row_count": 0,
+          "item_ratio": 0.0,
+          "quantity_ratio": 0.0,
+          "header_ratio": 0.0,
+          "footer_ratio": 0.0,
+          "fragmentation_penalty": 0.0,
+          "reasons": [
+            "no_rows"
+          ]
+        }
+      ],
+      "disagreement": true
+    }
+  ],
+  "page_layouts": [
+    {
+      "page_number": 1,
+      "header_fields_raw": [
+        "Bill of Material A1997",
+        "Codice / Code E0181296 01 Revisione / Revision 06 Tipo / Type Electro Optic (EOU) Ultima Rev. / Last Rev.",
+        "Riga / Tipo / Type Codice / Code Rev. Descrizione / Description Rif. Rif.Schema / Rif.Access / U.M. Q.tï¿½ Note CE MP Den.Comm. / Rag.Soc. /"
+      ],
+      "header_code": "E0181296",
+      "header_revision": "e",
+      "header_type": "/ Type Electro Optic (EOU) Ultima Rev. /",
+      "header_description": "/ Description Rif. Rif.Schema / Rif.Access / U.M. Q.tï¿½ Note CE MP Den.Comm. / Rag.Soc. /",
+      "footer_fields_raw": [
+        "THIS DOCUMENT CONTAINS PROPRIETARY INFORMATION OF ELETTRONICA S.p.A. ANY USE BY IL PRESENTE DOCUMENTO E' DI PROPRIETA' DELLA ELETTRONICA S.p.A. QUALSIASI SUO UTILIZZO DA Pagina / Sheet 1 / 2",
+        "Documento emesso con sistema di firma digitale/Released by digital signature - Autore/Originator: De Meo, Marco"
+      ],
+      "page_warnings": [
+        "excessive_stitching_detected"
+      ]
+    },
+    {
+      "page_number": 2,
+      "header_fields_raw": [],
+      "header_code": null,
+      "header_revision": null,
+      "header_type": null,
+      "header_description": null,
+      "footer_fields_raw": [
+        "THIS DOCUMENT CONTAINS PROPRIETARY INFORMATION OF ELETTRONICA S.p.A. ANY USE BY IL PRESENTE DOCUMENTO E' DI PROPRIETA' DELLA ELETTRONICA S.p.A. QUALSIASI SUO UTILIZZO DA Pagina / Sheet 2 / 2",
+        "Documento emesso con sistema di firma digitale/Released by digital signature - Autore/Originator: De Meo, Marco"
+      ],
+      "page_warnings": [
+        "parser_disagreement"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "page_number": 1,
+      "header_code": "E0181296",
+      "header_revision": "e",
+      "header_type": "/ Type Electro Optic (EOU) Ultima Rev. /",
+      "header_description": "/ Description Rif. Rif.Schema / Rif.Access / U.M. Q.tï¿½ Note CE MP Den.Comm. / Rag.Soc. /",
+      "header_fields_raw": [
+        "Bill of Material A1997",
+        "Codice / Code E0181296 01 Revisione / Revision 06 Tipo / Type Electro Optic (EOU) Ultima Rev. / Last Rev.",
+        "Riga / Tipo / Type Codice / Code Rev. Descrizione / Description Rif. Rif.Schema / Rif.Access / U.M. Q.tï¿½ Note CE MP Den.Comm. / Rag.Soc. /"
+      ],
+      "footer_fields_raw": [
+        "THIS DOCUMENT CONTAINS PROPRIETARY INFORMATION OF ELETTRONICA S.p.A. ANY USE BY IL PRESENTE DOCUMENTO E' DI PROPRIETA' DELLA ELETTRONICA S.p.A. QUALSIASI SUO UTILIZZO DA Pagina / Sheet 1 / 2",
+        "Documento emesso con sistema di firma digitale/Released by digital signature - Autore/Originator: De Meo, Marco"
+      ],
+      "reconstructed_table": [
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 15,
+          "raw_fragments": [
+            "0005 DD Disegno di Ingombro",
+            "E0216160",
+            "01 02 DD QUIRIS Laser Unit"
+          ],
+          "reconstructed_text": "0005 DD Disegno di Ingombro E0216160 01 02 DD QUIRIS Laser Unit",
+          "extracted_columns": [
+            "0005 DD Disegno di Ingombro",
+            "E0216160",
+            "01 02 DD QUIRIS Laser Unit"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 16,
+          "raw_fragments": [
+            "0010 Scheda",
+            "E0181331",
+            "01 03 QLU - Driver 4 4",
+            "NR",
+            "1"
+          ],
+          "reconstructed_text": "0010 Scheda E0181331 01 03 QLU - Driver 4 4 NR 1",
+          "extracted_columns": [
+            "0010 Scheda",
+            "E0181331",
+            "01 03 QLU - Driver 4 4",
+            "NR",
+            "1"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 17,
+          "raw_fragments": [
+            "0015 Unita",
+            "E0205407",
+            "01 04 QUIRIS Laser Unit US"
+          ],
+          "reconstructed_text": "0015 Unita E0205407 01 04 QUIRIS Laser Unit US",
+          "extracted_columns": [
+            "0015 Unita",
+            "E0205407",
+            "01 04 QUIRIS Laser Unit US"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 18,
+          "raw_fragments": [
+            "0020 Altro - Elemento Meccanico",
+            "E0256011",
+            "01 01 Teflon Laser Spacer 2 16_1-16_4",
+            "NR",
+            "4"
+          ],
+          "reconstructed_text": "0020 Altro - Elemento Meccanico E0256011 01 01 Teflon Laser Spacer 2 16_1-16_4 NR 4",
+          "extracted_columns": [
+            "0020 Altro - Elemento Meccanico",
+            "E0256011",
+            "01 01 Teflon Laser Spacer 2 16_1-16_4",
+            "NR",
+            "4"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 19,
+          "raw_fragments": [
+            "0025 Interno",
+            "E0215561",
+            "01 01 MoM CDR unità Laser Unit QUIRIS"
+          ],
+          "reconstructed_text": "0025 Interno E0215561 01 01 MoM CDR unità Laser Unit QUIRIS",
+          "extracted_columns": [
+            "0025 Interno",
+            "E0215561",
+            "01 01 MoM CDR unità Laser Unit QUIRIS"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 20,
+          "raw_fragments": [
+            "0030 Unita",
+            "E0205408",
+            "01 02 QUIRIS Laser Unit UDD"
+          ],
+          "reconstructed_text": "0030 Unita E0205408 01 02 QUIRIS Laser Unit UDD",
+          "extracted_columns": [
+            "0030 Unita",
+            "E0205408",
+            "01 02 QUIRIS Laser Unit UDD"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 21,
+          "raw_fragments": [
+            "0035 Interno",
+            "E0215554",
+            "01 01 MoM RR unità Laser unit QUIRIS"
+          ],
+          "reconstructed_text": "0035 Interno E0215554 01 01 MoM RR unità Laser unit QUIRIS",
+          "extracted_columns": [
+            "0035 Interno",
+            "E0215554",
+            "01 01 MoM RR unità Laser unit QUIRIS"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 22,
+          "raw_fragments": [
+            "0040 Chassis Elettrico",
+            "E0223806",
+            "01 04 QLU Elettrical chassis 1 1",
+            "NR",
+            "1"
+          ],
+          "reconstructed_text": "0040 Chassis Elettrico E0223806 01 04 QLU Elettrical chassis 1 1 NR 1",
+          "extracted_columns": [
+            "0040 Chassis Elettrico",
+            "E0223806",
+            "01 04 QLU Elettrical chassis 1 1",
+            "NR",
+            "1"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 23,
+          "raw_fragments": [
+            "0045 Integrazione Ottica",
+            "E0224097",
+            "01 02 QLU Lenses 2 2",
+            "NR",
+            "1"
+          ],
+          "reconstructed_text": "0045 Integrazione Ottica E0224097 01 02 QLU Lenses 2 2 NR 1",
+          "extracted_columns": [
+            "0045 Integrazione Ottica",
+            "E0224097",
+            "01 02 QLU Lenses 2 2",
+            "NR",
+            "1"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 24,
+          "raw_fragments": [
+            "0050 Interno",
+            "E0223640",
+            "01 01 MoM Delta RR unità Laser Unit QUIRIS"
+          ],
+          "reconstructed_text": "0050 Interno E0223640 01 01 MoM Delta RR unità Laser Unit QUIRIS",
+          "extracted_columns": [
+            "0050 Interno",
+            "E0223640",
+            "01 01 MoM Delta RR unità Laser Unit QUIRIS"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 25,
+          "raw_fragments": [
+            "0055 Unita",
+            "E0226123",
+            "01 01 QUIRIS Laser Unit IDD"
+          ],
+          "reconstructed_text": "0055 Unita E0226123 01 01 QUIRIS Laser Unit IDD",
+          "extracted_columns": [
+            "0055 Unita",
+            "E0226123",
+            "01 01 QUIRIS Laser Unit IDD"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 26,
+          "raw_fragments": [
+            "0060 Tool Set",
+            "E0226713",
+            "01 01 Toolset Coll. di Prod. Laser Unit",
+            "NR",
+            "1"
+          ],
+          "reconstructed_text": "0060 Tool Set E0226713 01 01 Toolset Coll. di Prod. Laser Unit NR 1",
+          "extracted_columns": [
+            "0060 Tool Set",
+            "E0226713",
+            "01 01 Toolset Coll. di Prod. Laser Unit",
+            "NR",
+            "1"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 27,
+          "raw_fragments": [
+            "0065 Interno",
+            "E0215559",
+            "01 01 MoM PDR unità Laser Unit QUIRIS"
+          ],
+          "reconstructed_text": "0065 Interno E0215559 01 01 MoM PDR unità Laser Unit QUIRIS",
+          "extracted_columns": [
+            "0065 Interno",
+            "E0215559",
+            "01 01 MoM PDR unità Laser Unit QUIRIS"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 28,
+          "raw_fragments": [
+            "0070 Altro - Elemento Meccanico",
+            "E0284577",
+            "01 01 Laser Cover Mirsense 30_1-30_2",
+            "NR",
+            "2"
+          ],
+          "reconstructed_text": "0070 Altro - Elemento Meccanico E0284577 01 01 Laser Cover Mirsense 30_1-30_2 NR 2",
+          "extracted_columns": [
+            "0070 Altro - Elemento Meccanico",
+            "E0284577",
+            "01 01 Laser Cover Mirsense 30_1-30_2",
+            "NR",
+            "2"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 29,
+          "raw_fragments": [
+            "0075 Unita",
+            "E0264469",
+            "01 02 UTD QLU"
+          ],
+          "reconstructed_text": "0075 Unita E0264469 01 02 UTD QLU",
+          "extracted_columns": [
+            "0075 Unita",
+            "E0264469",
+            "01 02 UTD QLU"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 30,
+          "raw_fragments": [
+            "0080 Minuteria",
+            "C0020641",
+            "03 VTCEI M3X8 A4-70 ISO4762 8_1-8_18",
+            "NR 18",
+            "VTCEI M3X8 A4-70 ISO4762",
+            "COSTRUTTORE",
+            "FITTIZIO"
+          ],
+          "reconstructed_text": "0080 Minuteria C0020641 03 VTCEI M3X8 A4-70 ISO4762 8_1-8_18 NR 18 VTCEI M3X8 A4-70 ISO4762 COSTRUTTORE FITTIZIO",
+          "extracted_columns": [
+            "0080 Minuteria",
+            "C0020641",
+            "03 VTCEI M3X8 A4-70 ISO4762 8_1-8_18",
+            "NR 18",
+            "VTCEI M3X8 A4-70 ISO4762",
+            "COSTRUTTORE",
+            "FITTIZIO"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 31,
+          "raw_fragments": [
+            "0085 Minuteria",
+            "C0025367",
+            "02 VTCEI M2.5X12 A4-70 ISO4762 19_1-19_5",
+            "NR",
+            "5",
+            "NO VTCEI M2,5X12 A4-70 ISO4762",
+            "COSTRUTTORE",
+            "FITTIZIO"
+          ],
+          "reconstructed_text": "0085 Minuteria C0025367 02 VTCEI M2.5X12 A4-70 ISO4762 19_1-19_5 NR 5 NO VTCEI M2,5X12 A4-70 ISO4762 COSTRUTTORE FITTIZIO",
+          "extracted_columns": [
+            "0085 Minuteria",
+            "C0025367",
+            "02 VTCEI M2.5X12 A4-70 ISO4762 19_1-19_5",
+            "NR",
+            "5",
+            "NO VTCEI M2,5X12 A4-70 ISO4762",
+            "COSTRUTTORE",
+            "FITTIZIO"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 32,
+          "raw_fragments": [
+            "0090 Materiale Chimico di Processo",
+            "166104001",
+            "04 ADESIVO",
+            "KGM",
+            "0.05",
+            "NO LOCTITE 243",
+            "LOCTITE CORP."
+          ],
+          "reconstructed_text": "0090 Materiale Chimico di Processo 166104001 04 ADESIVO KGM 0.05 NO LOCTITE 243 LOCTITE CORP.",
+          "extracted_columns": [
+            "0090 Materiale Chimico di Processo",
+            "166104001",
+            "04 ADESIVO",
+            "KGM",
+            "0.05",
+            "NO LOCTITE 243",
+            "LOCTITE CORP."
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 33,
+          "raw_fragments": [
+            "0095 Procedura Operativa",
+            "E0029311",
+            "01 05 MARCATURA LASER 43"
+          ],
+          "reconstructed_text": "0095 Procedura Operativa E0029311 01 05 MARCATURA LASER 43",
+          "extracted_columns": [
+            "0095 Procedura Operativa",
+            "E0029311",
+            "01 05 MARCATURA LASER 43"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 34,
+          "raw_fragments": [
+            "0100 Minuteria",
+            "230501454",
+            "03 Hexagon socket head cap screws 10 10_1-10_4, 10_9-",
+            "NR 31",
+            "NO M1,6X6DIN912",
+            "SPS TECHNOLOGIES,INC./UNBRAKO",
+            "10_35"
+          ],
+          "reconstructed_text": "0100 Minuteria 230501454 03 Hexagon socket head cap screws 10 10_1-10_4, 10_9- NR 31 NO M1,6X6DIN912 SPS TECHNOLOGIES,INC./UNBRAKO 10_35",
+          "extracted_columns": [
+            "0100 Minuteria",
+            "230501454",
+            "03 Hexagon socket head cap screws 10 10_1-10_4, 10_9-",
+            "NR 31",
+            "NO M1,6X6DIN912",
+            "SPS TECHNOLOGIES,INC./UNBRAKO",
+            "10_35"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor",
+            "row_stitched",
+            "multiline_row_detected",
+            "possible_fragmentation",
+            "continuation_attached"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 36,
+          "raw_fragments": [
+            "0110 Ottico",
+            "E0161319",
+            "01 02 QLU - Beam Regulator 12 12_1-12_3",
+            "NR",
+            "3"
+          ],
+          "reconstructed_text": "0110 Ottico E0161319 01 02 QLU - Beam Regulator 12 12_1-12_3 NR 3",
+          "extracted_columns": [
+            "0110 Ottico",
+            "E0161319",
+            "01 02 QLU - Beam Regulator 12 12_1-12_3",
+            "NR",
+            "3"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 37,
+          "raw_fragments": [
+            "0115 Norma di Progetto",
+            "Q8001233NP",
+            "02 COPPIE DI SERRAGGIO 42"
+          ],
+          "reconstructed_text": "0115 Norma di Progetto Q8001233NP 02 COPPIE DI SERRAGGIO 42",
+          "extracted_columns": [
+            "0115 Norma di Progetto",
+            "Q8001233NP",
+            "02 COPPIE DI SERRAGGIO 42"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 38,
+          "raw_fragments": [
+            "0120 Minuteria",
+            "C0019673",
+            "03 VTCEI M2.5X8 A4-70 ISO4762 40_1-40_19",
+            "NR 19",
+            "VTCEI M2.5X8 A4-70 ISO4762",
+            "COSTRUTTORE",
+            "FITTIZIO"
+          ],
+          "reconstructed_text": "0120 Minuteria C0019673 03 VTCEI M2.5X8 A4-70 ISO4762 40_1-40_19 NR 19 VTCEI M2.5X8 A4-70 ISO4762 COSTRUTTORE FITTIZIO",
+          "extracted_columns": [
+            "0120 Minuteria",
+            "C0019673",
+            "03 VTCEI M2.5X8 A4-70 ISO4762 40_1-40_19",
+            "NR 19",
+            "VTCEI M2.5X8 A4-70 ISO4762",
+            "COSTRUTTORE",
+            "FITTIZIO"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 39,
+          "raw_fragments": [
+            "0125 SE Schema Elettrico (HW/FW)",
+            "E0262834",
+            "01 01 ELT/577 QUIRIS DIRCM QLU Electrical Scheme"
+          ],
+          "reconstructed_text": "0125 SE Schema Elettrico (HW/FW) E0262834 01 01 ELT/577 QUIRIS DIRCM QLU Electrical Scheme",
+          "extracted_columns": [
+            "0125 SE Schema Elettrico (HW/FW)",
+            "E0262834",
+            "01 01 ELT/577 QUIRIS DIRCM QLU Electrical Scheme"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 40,
+          "raw_fragments": [
+            "0130 Minuteria",
+            "C0023802",
+            "03 VTCEI M2.5X6 A4-70 ISO4762 6 6_1-6_16",
+            "NR 16",
+            "VTCEI M2,5X6 A4-70 ISO4762",
+            "COSTRUTTORE",
+            "FITTIZIO"
+          ],
+          "reconstructed_text": "0130 Minuteria C0023802 03 VTCEI M2.5X6 A4-70 ISO4762 6 6_1-6_16 NR 16 VTCEI M2,5X6 A4-70 ISO4762 COSTRUTTORE FITTIZIO",
+          "extracted_columns": [
+            "0130 Minuteria",
+            "C0023802",
+            "03 VTCEI M2.5X6 A4-70 ISO4762 6 6_1-6_16",
+            "NR 16",
+            "VTCEI M2,5X6 A4-70 ISO4762",
+            "COSTRUTTORE",
+            "FITTIZIO"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 41,
+          "raw_fragments": [
+            "0135 Tool Set",
+            "E0265415",
+            "01 01 Toolset di assiemaggio per QLU",
+            "NR",
+            "1"
+          ],
+          "reconstructed_text": "0135 Tool Set E0265415 01 01 Toolset di assiemaggio per QLU NR 1",
+          "extracted_columns": [
+            "0135 Tool Set",
+            "E0265415",
+            "01 01 Toolset di assiemaggio per QLU",
+            "NR",
+            "1"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 42,
+          "raw_fragments": [
+            "0140 Minuteria",
+            "232001031",
+            "02 ROSET.PIANA X VITE TC 2,2 24_1-24_6",
+            "NR",
+            "6",
+            "NO ROSETTA2,2X4,4 UNI6592-A2;",
+            "MEC-BOLT,SPA;"
+          ],
+          "reconstructed_text": "0140 Minuteria 232001031 02 ROSET.PIANA X VITE TC 2,2 24_1-24_6 NR 6 NO ROSETTA2,2X4,4 UNI6592-A2; MEC-BOLT,SPA;",
+          "extracted_columns": [
+            "0140 Minuteria",
+            "232001031",
+            "02 ROSET.PIANA X VITE TC 2,2 24_1-24_6",
+            "NR",
+            "6",
+            "NO ROSETTA2,2X4,4 UNI6592-A2;",
+            "MEC-BOLT,SPA;"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor",
+            "ambiguous_alignment"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 43,
+          "raw_fragments": [
+            "ROSETTA 2,2X4,5 DIN433-A2;",
+            "Bossard Group;",
+            "ROSETTA 2,2X4,5 DIN433-A2; RIBE-R.BERGNER GMBH + CO.;",
+            "ROSETTA2,2X4,5 UNI6592-A2 INOX DADI,SPA"
+          ],
+          "reconstructed_text": "ROSETTA 2,2X4,5 DIN433-A2; Bossard Group; ROSETTA 2,2X4,5 DIN433-A2; RIBE-R.BERGNER GMBH + CO.; ROSETTA2,2X4,5 UNI6592-A2 INOX DADI,SPA",
+          "extracted_columns": [
+            "ROSETTA 2,2X4,5 DIN433-A2;",
+            "Bossard Group;",
+            "ROSETTA 2,2X4,5 DIN433-A2;",
+            "RIBE-R.BERGNER",
+            "GMBH +",
+            "CO.;",
+            "ROSETTA2,2X4,5 UNI6592-A2",
+            "INOX DADI,SPA"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.35,
+          "warnings": [
+            "continuation_candidate",
+            "low_column_count",
+            "quantity_missing",
+            "continuation_attachment_uncertain",
+            "row_stitched",
+            "multiline_row_detected",
+            "possible_fragmentation",
+            "continuation_attached"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 46,
+          "raw_fragments": [
+            "0145 Altro - Elemento Meccanico",
+            "C0098602",
+            "01 SPRING 34_1-34_12",
+            "NR 12"
+          ],
+          "reconstructed_text": "0145 Altro - Elemento Meccanico C0098602 01 SPRING 34_1-34_12 NR 12",
+          "extracted_columns": [
+            "0145 Altro - Elemento Meccanico",
+            "C0098602",
+            "01 SPRING 34_1-34_12",
+            "NR 12"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 47,
+          "raw_fragments": [
+            "0150 Altro - Elemento Meccanico",
+            "E0253559",
+            "01 01 Valve Filler rilavorata 3",
+            "NR",
+            "1"
+          ],
+          "reconstructed_text": "0150 Altro - Elemento Meccanico E0253559 01 01 Valve Filler rilavorata 3 NR 1",
+          "extracted_columns": [
+            "0150 Altro - Elemento Meccanico",
+            "E0253559",
+            "01 01 Valve Filler rilavorata 3",
+            "NR",
+            "1"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 48,
+          "raw_fragments": [
+            "0155 Altro - Elemento Meccanico",
+            "E0389243",
+            "01 01 OR QLU Coperchio",
+            "NR",
+            "1"
+          ],
+          "reconstructed_text": "0155 Altro - Elemento Meccanico E0389243 01 01 OR QLU Coperchio NR 1",
+          "extracted_columns": [
+            "0155 Altro - Elemento Meccanico",
+            "E0389243",
+            "01 01 OR QLU Coperchio",
+            "NR",
+            "1"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 49,
+          "raw_fragments": [
+            "0160 Minuteria",
+            "232001030",
+            "01 ROSET.PIANA X VITE TC 1,8 9 9_1-9_31",
+            "NR 31",
+            "NO ROSETTA 1,7X4 DIN125A-A2;",
+            "RIBE-R.BERGNER",
+            "GMBH +",
+            "CO.;"
+          ],
+          "reconstructed_text": "0160 Minuteria 232001030 01 ROSET.PIANA X VITE TC 1,8 9 9_1-9_31 NR 31 NO ROSETTA 1,7X4 DIN125A-A2; RIBE-R.BERGNER GMBH + CO.;",
+          "extracted_columns": [
+            "0160 Minuteria",
+            "232001030",
+            "01 ROSET.PIANA X VITE TC 1,8 9 9_1-9_31",
+            "NR 31",
+            "NO ROSETTA 1,7X4 DIN125A-A2;",
+            "RIBE-R.BERGNER",
+            "GMBH +",
+            "CO.;"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor",
+            "ambiguous_alignment"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 1,
+          "row_index": 50,
+          "raw_fragments": [
+            "ROSETTA 1,7X4 DIN125A-A2;",
+            "Bossard Group;",
+            "ROSETTA1,8X3,5 UNI6592-A2; INOX DADI,SPA;",
+            "ROSETTA1,8X3,5 UNI6592-A2 MEC-BOLT,SPA"
+          ],
+          "reconstructed_text": "ROSETTA 1,7X4 DIN125A-A2; Bossard Group; ROSETTA1,8X3,5 UNI6592-A2; INOX DADI,SPA; ROSETTA1,8X3,5 UNI6592-A2 MEC-BOLT,SPA",
+          "extracted_columns": [
+            "ROSETTA 1,7X4 DIN125A-A2;",
+            "Bossard Group;",
+            "ROSETTA1,8X3,5 UNI6592-A2;",
+            "INOX DADI,SPA;",
+            "ROSETTA1,8X3,5 UNI6592-A2",
+            "MEC-BOLT,SPA"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.35,
+          "warnings": [
+            "continuation_candidate",
+            "low_column_count",
+            "quantity_missing",
+            "continuation_attachment_uncertain",
+            "row_stitched",
+            "multiline_row_detected",
+            "possible_fragmentation",
+            "continuation_attached"
+          ]
+        }
+      ],
+      "parser_decision": {
+        "page_number": 1,
+        "selected_parser": "pymupdf_words",
+        "selected_score": 0.624,
+        "score_details": [
+          {
+            "parser_name": "pymupdf_words",
+            "final_score": 0.624,
+            "row_count": 52,
+            "item_ratio": 0.5962,
+            "quantity_ratio": 0.6154,
+            "header_ratio": 0.0385,
+            "footer_ratio": 0.0,
+            "fragmentation_penalty": 0.0192,
+            "reasons": [
+              "base_confidence=0.75",
+              "item_ratio=0.60",
+              "quantity_ratio=0.62",
+              "header_ratio=0.04",
+              "footer_ratio=0.00",
+              "fragmentation=0.02"
+            ]
+          },
+          {
+            "parser_name": "pdfplumber_table",
+            "final_score": 0.3058,
+            "row_count": 11,
+            "item_ratio": 0.0,
+            "quantity_ratio": 0.0909,
+            "header_ratio": 0.1818,
+            "footer_ratio": 0.0,
+            "fragmentation_penalty": 0.0,
+            "reasons": [
+              "base_confidence=0.80",
+              "item_ratio=0.00",
+              "quantity_ratio=0.09",
+              "header_ratio=0.18",
+              "footer_ratio=0.00",
+              "fragmentation=0.00",
+              "low_final_score"
+            ]
+          },
+          {
+            "parser_name": "camelot_lattice",
+            "final_score": 0.105,
+            "row_count": 1,
+            "item_ratio": 0.0,
+            "quantity_ratio": 0.0,
+            "header_ratio": 1.0,
+            "footer_ratio": 0.0,
+            "fragmentation_penalty": 0.0,
+            "reasons": [
+              "base_confidence=0.86",
+              "item_ratio=0.00",
+              "quantity_ratio=0.00",
+              "header_ratio=1.00",
+              "footer_ratio=0.00",
+              "fragmentation=0.00",
+              "low_final_score"
+            ]
+          },
+          {
+            "parser_name": "ocr_fallback",
+            "final_score": 0.0,
+            "row_count": 0,
+            "item_ratio": 0.0,
+            "quantity_ratio": 0.0,
+            "header_ratio": 0.0,
+            "footer_ratio": 0.0,
+            "fragmentation_penalty": 0.0,
+            "reasons": [
+              "no_rows"
+            ]
+          }
+        ],
+        "disagreement": false
+      },
+      "layout_model": {
+        "zone_header_cutoff": 17.849999999999998,
+        "zone_footer_cutoff": 537.6923583984375,
+        "header_lines": [
+          "Bill of Material A1997",
+          "Codice / Code E0181296 01 Revisione / Revision 06 Tipo / Type Electro Optic (EOU) Ultima Rev. / Last Rev.",
+          "Riga / Tipo / Type Codice / Code Rev. Descrizione / Description Rif. Rif.Schema / Rif.Access / U.M. Q.tï¿½ Note CE MP Den.Comm. / Rag.Soc. /"
+        ],
+        "table_lines": [
+          "Descrizione / Description QUIRIS Laser Unit",
+          "Specifica di Configurazione / Solo Rilasciati / Data di Stampa /",
+          "Ultima revisione SI / YES 21/11/2025",
+          "Configuration Specification Only Released Printing Date",
+          "Riferimenti / References",
+          "ALT = Alternativa / Alternative CE = Cariche Elettrostatiche / Elettrostatics Charge Rif.DIS = Riferimento Disegno / Drawing Reference",
+          "MP = Materiale Pericoloso / Dangerous Material OBS = Obsoleto / Obsolete Q.tï¿½ = Quantitï¿½ / Quantity",
+          "Rev. = Revisione / Revision U.M. = Unitï¿½ di Misura / Units of measure",
+          "Rif.Schema / Diag.Ref. = Riferimento Schema / Diagram Reference Rif.Access / Access.Ref. = Riferimento Accessorio / Accessory Reference",
+          "Den.Comm. / Trade Name = Denominazione Commerciale / Trade Name Rag.Soc. / Comp.Name = Ragione Sociale / Company Name",
+          "Item DIS Diag.Ref. Access.Ref. Trade Name Comp.Name",
+          "0005 DD Disegno di Ingombro E0216160 01 02 DD QUIRIS Laser Unit",
+          "0010 Scheda E0181331 01 03 QLU - Driver 4 4 NR 1",
+          "0015 Unita E0205407 01 04 QUIRIS Laser Unit US",
+          "0020 Altro - Elemento Meccanico E0256011 01 01 Teflon Laser Spacer 2 16_1-16_4 NR 4",
+          "0025 Interno E0215561 01 01 MoM CDR unità Laser Unit QUIRIS",
+          "0030 Unita E0205408 01 02 QUIRIS Laser Unit UDD",
+          "0035 Interno E0215554 01 01 MoM RR unità Laser unit QUIRIS",
+          "0040 Chassis Elettrico E0223806 01 04 QLU Elettrical chassis 1 1 NR 1",
+          "0045 Integrazione Ottica E0224097 01 02 QLU Lenses 2 2 NR 1",
+          "0050 Interno E0223640 01 01 MoM Delta RR unità Laser Unit QUIRIS",
+          "0055 Unita E0226123 01 01 QUIRIS Laser Unit IDD",
+          "0060 Tool Set E0226713 01 01 Toolset Coll. di Prod. Laser Unit NR 1",
+          "0065 Interno E0215559 01 01 MoM PDR unità Laser Unit QUIRIS",
+          "0070 Altro - Elemento Meccanico E0284577 01 01 Laser Cover Mirsense 30_1-30_2 NR 2",
+          "0075 Unita E0264469 01 02 UTD QLU",
+          "0080 Minuteria C0020641 03 VTCEI M3X8 A4-70 ISO4762 8_1-8_18 NR 18 VTCEI M3X8 A4-70 ISO4762 COSTRUTTORE FITTIZIO",
+          "0085 Minuteria C0025367 02 VTCEI M2.5X12 A4-70 ISO4762 19_1-19_5 NR 5 NO VTCEI M2,5X12 A4-70 ISO4762 COSTRUTTORE FITTIZIO",
+          "0090 Materiale Chimico di Processo 166104001 04 ADESIVO KGM 0.05 NO LOCTITE 243 LOCTITE CORP.",
+          "0095 Procedura Operativa E0029311 01 05 MARCATURA LASER 43",
+          "0100 Minuteria 230501454 03 Hexagon socket head cap screws 10 10_1-10_4, 10_9- NR 31 NO M1,6X6DIN912 SPS TECHNOLOGIES,INC./UNBRAKO",
+          "10_35",
+          "0110 Ottico E0161319 01 02 QLU - Beam Regulator 12 12_1-12_3 NR 3",
+          "0115 Norma di Progetto Q8001233NP 02 COPPIE DI SERRAGGIO 42",
+          "0120 Minuteria C0019673 03 VTCEI M2.5X8 A4-70 ISO4762 40_1-40_19 NR 19 VTCEI M2.5X8 A4-70 ISO4762 COSTRUTTORE FITTIZIO",
+          "0125 SE Schema Elettrico (HW/FW) E0262834 01 01 ELT/577 QUIRIS DIRCM QLU Electrical Scheme",
+          "0130 Minuteria C0023802 03 VTCEI M2.5X6 A4-70 ISO4762 6 6_1-6_16 NR 16 VTCEI M2,5X6 A4-70 ISO4762 COSTRUTTORE FITTIZIO",
+          "0135 Tool Set E0265415 01 01 Toolset di assiemaggio per QLU NR 1",
+          "0140 Minuteria 232001031 02 ROSET.PIANA X VITE TC 2,2 24_1-24_6 NR 6 NO ROSETTA2,2X4,4 UNI6592-A2; MEC-BOLT,SPA;",
+          "ROSETTA 2,2X4,5 DIN433-A2; Bossard Group;",
+          "ROSETTA 2,2X4,5 DIN433-A2; RIBE-R.BERGNER GMBH + CO.;",
+          "ROSETTA2,2X4,5 UNI6592-A2 INOX DADI,SPA",
+          "0145 Altro - Elemento Meccanico C0098602 01 SPRING 34_1-34_12 NR 12",
+          "0150 Altro - Elemento Meccanico E0253559 01 01 Valve Filler rilavorata 3 NR 1",
+          "0155 Altro - Elemento Meccanico E0389243 01 01 OR QLU Coperchio NR 1",
+          "0160 Minuteria 232001030 01 ROSET.PIANA X VITE TC 1,8 9 9_1-9_31 NR 31 NO ROSETTA 1,7X4 DIN125A-A2; RIBE-R.BERGNER GMBH + CO.;",
+          "ROSETTA 1,7X4 DIN125A-A2; Bossard Group;",
+          "ROSETTA1,8X3,5 UNI6592-A2; INOX DADI,SPA;",
+          "ROSETTA1,8X3,5 UNI6592-A2 MEC-BOLT,SPA",
+          "0165 Materiale Chimico di Processo C0098682 01 Thermal Past 60 KGM 0.025 CMQ2-25G Syringe ARTIC SILVER INC",
+          "A THIRD PARTY WITHOUT PRIOR AUTHORITION OF THE COMPANY SHALL BE PROSECUTED. PARTE DI TERZI SENZA AUTORIZZAZIONE DELLA SOCIETA' SARA' PERSEGUITO A TERMINI DI LEGGE.",
+          "Stato/Stage: RILASCIATO / RELEASED Nome/Code: E0181296 01 Rev: 06 Data Rilascio: 21/11/2025"
+        ],
+        "footer_lines": [
+          "THIS DOCUMENT CONTAINS PROPRIETARY INFORMATION OF ELETTRONICA S.p.A. ANY USE BY IL PRESENTE DOCUMENTO E' DI PROPRIETA' DELLA ELETTRONICA S.p.A. QUALSIASI SUO UTILIZZO DA Pagina / Sheet 1 / 2",
+          "Documento emesso con sistema di firma digitale/Released by digital signature - Autore/Originator: De Meo, Marco"
+        ],
+        "background_noise_lines": [],
+        "layout_warnings": [],
+        "layout_confidence": 0.9123,
+        "page_width": 842.0,
+        "page_height": 595.0,
+        "column_boundaries": [
+          114.07671285839433,
+          133.80084228515625,
+          155.03333091733938,
+          442.3785041878782,
+          489.38498838181476,
+          516.4848301730817,
+          552.3908386230469,
+          668.9087131118795,
+          723.5845403671265,
+          747.0768392086029,
+          770.2052001953125
+        ],
+        "row_boundary_metrics": {
+          "candidate_item_anchor_count": 31,
+          "reconstructed_row_count": 47,
+          "merge_ratio": 0.09615384615384616
+        }
+      },
+      "warnings": [
+        "excessive_stitching_detected"
+      ]
+    },
+    {
+      "page_number": 2,
+      "header_code": null,
+      "header_revision": null,
+      "header_type": null,
+      "header_description": null,
+      "header_fields_raw": [],
+      "footer_fields_raw": [
+        "THIS DOCUMENT CONTAINS PROPRIETARY INFORMATION OF ELETTRONICA S.p.A. ANY USE BY IL PRESENTE DOCUMENTO E' DI PROPRIETA' DELLA ELETTRONICA S.p.A. QUALSIASI SUO UTILIZZO DA Pagina / Sheet 2 / 2",
+        "Documento emesso con sistema di firma digitale/Released by digital signature - Autore/Originator: De Meo, Marco"
+      ],
+      "reconstructed_table": [
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 1,
+          "raw_fragments": [
+            "0170",
+            "Altro - Elemento Meccanico",
+            "E0284699",
+            "01",
+            "01 Laser Support Brolis",
+            "17 NR",
+            "1"
+          ],
+          "reconstructed_text": "0170 Altro - Elemento Meccanico E0284699 01 01 Laser Support Brolis 17 NR 1",
+          "extracted_columns": [
+            "0170",
+            "Altro - Elemento Meccanico",
+            "E0284699",
+            "01",
+            "01 Laser Support Brolis",
+            "17 NR",
+            "1"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 2,
+          "raw_fragments": [
+            "0175",
+            "Integrazione Meccanica",
+            "E0284573",
+            "01",
+            "01 Assieme Tec B4 Mirsense",
+            "50",
+            "50_1-50_2 NR",
+            "2"
+          ],
+          "reconstructed_text": "0175 Integrazione Meccanica E0284573 01 01 Assieme Tec B4 Mirsense 50 50_1-50_2 NR 2",
+          "extracted_columns": [
+            "0175",
+            "Integrazione Meccanica",
+            "E0284573",
+            "01",
+            "01 Assieme Tec B4 Mirsense",
+            "50",
+            "50_1-50_2 NR",
+            "2"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 3,
+          "raw_fragments": [
+            "0180",
+            "Minuteria",
+            "C0019674",
+            "03 VTCEI M2.5X5 A4-70 ISO4762",
+            "14",
+            "14_1-14_12 NR",
+            "12",
+            "VTCEI",
+            "M2.5X5 A4-70",
+            "ISO4762 COSTRUTTORE",
+            "FITTIZIO"
+          ],
+          "reconstructed_text": "0180 Minuteria C0019674 03 VTCEI M2.5X5 A4-70 ISO4762 14 14_1-14_12 NR 12 VTCEI M2.5X5 A4-70 ISO4762 COSTRUTTORE FITTIZIO",
+          "extracted_columns": [
+            "0180",
+            "Minuteria",
+            "C0019674",
+            "03 VTCEI M2.5X5 A4-70 ISO4762",
+            "14",
+            "14_1-14_12 NR",
+            "12",
+            "VTCEI",
+            "M2.5X5 A4-70",
+            "ISO4762 COSTRUTTORE",
+            "FITTIZIO"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 4,
+          "raw_fragments": [
+            "0185",
+            "Integrazione Meccanica",
+            "E0284633",
+            "01",
+            "01 Assieme Tec Brolis",
+            "37",
+            "37 NR",
+            "1"
+          ],
+          "reconstructed_text": "0185 Integrazione Meccanica E0284633 01 01 Assieme Tec Brolis 37 37 NR 1",
+          "extracted_columns": [
+            "0185",
+            "Integrazione Meccanica",
+            "E0284633",
+            "01",
+            "01 Assieme Tec Brolis",
+            "37",
+            "37 NR",
+            "1"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 5,
+          "raw_fragments": [
+            "0190",
+            "Altro - Elemento Meccanico",
+            "E0284581",
+            "01",
+            "01 Laser Support Mirsense",
+            "39_1-39_2 NR",
+            "2"
+          ],
+          "reconstructed_text": "0190 Altro - Elemento Meccanico E0284581 01 01 Laser Support Mirsense 39_1-39_2 NR 2",
+          "extracted_columns": [
+            "0190",
+            "Altro - Elemento Meccanico",
+            "E0284581",
+            "01",
+            "01 Laser Support Mirsense",
+            "39_1-39_2 NR",
+            "2"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 6,
+          "raw_fragments": [
+            "0195",
+            "Altro - Elemento Meccanico",
+            "E0284596",
+            "01",
+            "01 Laser Bush Mirsense",
+            "28_1-28_4 NR",
+            "4"
+          ],
+          "reconstructed_text": "0195 Altro - Elemento Meccanico E0284596 01 01 Laser Bush Mirsense 28_1-28_4 NR 4",
+          "extracted_columns": [
+            "0195",
+            "Altro - Elemento Meccanico",
+            "E0284596",
+            "01",
+            "01 Laser Bush Mirsense",
+            "28_1-28_4 NR",
+            "4"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 7,
+          "raw_fragments": [
+            "0200",
+            "Altro - Elemento Meccanico",
+            "E0284696",
+            "01",
+            "01 Upper Laser Bush",
+            "21_1-21_4 NR",
+            "4"
+          ],
+          "reconstructed_text": "0200 Altro - Elemento Meccanico E0284696 01 01 Upper Laser Bush 21_1-21_4 NR 4",
+          "extracted_columns": [
+            "0200",
+            "Altro - Elemento Meccanico",
+            "E0284696",
+            "01",
+            "01 Upper Laser Bush",
+            "21_1-21_4 NR",
+            "4"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 8,
+          "raw_fragments": [
+            "0205",
+            "Altro - Elemento Meccanico",
+            "E0284698",
+            "01",
+            "01 Laser Spacer sp.1",
+            "20_1-20_4 NR",
+            "4"
+          ],
+          "reconstructed_text": "0205 Altro - Elemento Meccanico E0284698 01 01 Laser Spacer sp.1 20_1-20_4 NR 4",
+          "extracted_columns": [
+            "0205",
+            "Altro - Elemento Meccanico",
+            "E0284698",
+            "01",
+            "01 Laser Spacer sp.1",
+            "20_1-20_4 NR",
+            "4"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 9,
+          "raw_fragments": [
+            "0210",
+            "Minuteria",
+            "C0021768",
+            "02 VTCEI M3X10 A4-70 ISO4762",
+            "18_1-18_4 NR",
+            "4",
+            "VTCEI",
+            "M3X10 A4-70",
+            "ISO4762 COSTRUTTORE",
+            "FITTIZIO"
+          ],
+          "reconstructed_text": "0210 Minuteria C0021768 02 VTCEI M3X10 A4-70 ISO4762 18_1-18_4 NR 4 VTCEI M3X10 A4-70 ISO4762 COSTRUTTORE FITTIZIO",
+          "extracted_columns": [
+            "0210",
+            "Minuteria",
+            "C0021768",
+            "02 VTCEI M3X10 A4-70 ISO4762",
+            "18_1-18_4 NR",
+            "4",
+            "VTCEI",
+            "M3X10 A4-70",
+            "ISO4762 COSTRUTTORE",
+            "FITTIZIO"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 10,
+          "raw_fragments": [
+            "0215",
+            "Altro - Elemento Meccanico",
+            "E0284697",
+            "01",
+            "01 Lower Laser Bush",
+            "22_1-22_4 NR",
+            "4"
+          ],
+          "reconstructed_text": "0215 Altro - Elemento Meccanico E0284697 01 01 Lower Laser Bush 22_1-22_4 NR 4",
+          "extracted_columns": [
+            "0215",
+            "Altro - Elemento Meccanico",
+            "E0284697",
+            "01",
+            "01 Lower Laser Bush",
+            "22_1-22_4 NR",
+            "4"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 11,
+          "raw_fragments": [
+            "0220",
+            "Altro - Elemento Meccanico",
+            "E0284700",
+            "01",
+            "01 Laser Cover Brolis",
+            "38 NR",
+            "1"
+          ],
+          "reconstructed_text": "0220 Altro - Elemento Meccanico E0284700 01 01 Laser Cover Brolis 38 NR 1",
+          "extracted_columns": [
+            "0220",
+            "Altro - Elemento Meccanico",
+            "E0284700",
+            "01",
+            "01 Laser Cover Brolis",
+            "38 NR",
+            "1"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 12,
+          "raw_fragments": [
+            "0225",
+            "Ottico",
+            "E0141794",
+            "01",
+            "03 B1 BK3 Laser",
+            "23",
+            "23 NR",
+            "1"
+          ],
+          "reconstructed_text": "0225 Ottico E0141794 01 03 B1 BK3 Laser 23 23 NR 1",
+          "extracted_columns": [
+            "0225",
+            "Ottico",
+            "E0141794",
+            "01",
+            "03 B1 BK3 Laser",
+            "23",
+            "23 NR",
+            "1"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 13,
+          "raw_fragments": [
+            "0230",
+            "Altro - Elemento Meccanico",
+            "E0389258",
+            "01",
+            "01 OR QLU-QTU Interface",
+            "NR",
+            "1"
+          ],
+          "reconstructed_text": "0230 Altro - Elemento Meccanico E0389258 01 01 OR QLU-QTU Interface NR 1",
+          "extracted_columns": [
+            "0230",
+            "Altro - Elemento Meccanico",
+            "E0389258",
+            "01",
+            "01 OR QLU-QTU Interface",
+            "NR",
+            "1"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.7,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 14,
+          "raw_fragments": [
+            "0235",
+            "Minuteria",
+            "232001032",
+            "02 ROSET.PIANA X VITE TC 2,7",
+            "5_1-5_28 NR",
+            "28",
+            "NO",
+            "ROSETTA",
+            "2,7X5 UNI6592-A2;",
+            "MEC-BOLT,SPA;"
+          ],
+          "reconstructed_text": "0235 Minuteria 232001032 02 ROSET.PIANA X VITE TC 2,7 5_1-5_28 NR 28 NO ROSETTA 2,7X5 UNI6592-A2; MEC-BOLT,SPA;",
+          "extracted_columns": [
+            "0235",
+            "Minuteria",
+            "232001032",
+            "02 ROSET.PIANA X VITE TC 2,7",
+            "5_1-5_28 NR",
+            "28",
+            "NO",
+            "ROSETTA",
+            "2,7X5 UNI6592-A2;",
+            "MEC-BOLT,SPA;"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor",
+            "merge_blocked_full_pattern",
+            "ambiguous_alignment"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 15,
+          "raw_fragments": [
+            "ROSETTA",
+            "2,7X5 UNI6592-A2;",
+            "INOX",
+            "DADI,SPA;",
+            "ROSETTA 2,7X5 DIN433-A2; Bossard Group;",
+            "ROSETTA 2,7X5 DIN433-A2 RIBE-R.BERGNER GMBH + CO."
+          ],
+          "reconstructed_text": "ROSETTA 2,7X5 UNI6592-A2; INOX DADI,SPA; ROSETTA 2,7X5 DIN433-A2; Bossard Group; ROSETTA 2,7X5 DIN433-A2 RIBE-R.BERGNER GMBH + CO.",
+          "extracted_columns": [
+            "ROSETTA",
+            "2,7X5 UNI6592-A2;",
+            "INOX",
+            "DADI,SPA;",
+            "ROSETTA",
+            "2,7X5 DIN433-A2;",
+            "Bossard",
+            "Group;",
+            "ROSETTA",
+            "2,7X5 DIN433-A2",
+            "RIBE-R.BERGNER",
+            "GMBH +",
+            "CO."
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.35,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "parser_disagreement",
+            "continuation_attachment_uncertain",
+            "row_stitched",
+            "multiline_row_detected",
+            "possible_fragmentation",
+            "continuation_attached"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 18,
+          "raw_fragments": [
+            "0240",
+            "Minuteria",
+            "232001008",
+            "02 ROSET.PIANA X VITE TC 3,2",
+            "7_1-7_16 NR",
+            "16",
+            "NO",
+            "ROSETTA",
+            "3,2X6 DIN433-A2;",
+            "RIBE-R.BERGNER",
+            "GMBH +",
+            "CO.;"
+          ],
+          "reconstructed_text": "0240 Minuteria 232001008 02 ROSET.PIANA X VITE TC 3,2 7_1-7_16 NR 16 NO ROSETTA 3,2X6 DIN433-A2; RIBE-R.BERGNER GMBH + CO.;",
+          "extracted_columns": [
+            "0240",
+            "Minuteria",
+            "232001008",
+            "02 ROSET.PIANA X VITE TC 3,2",
+            "7_1-7_16 NR",
+            "16",
+            "NO",
+            "ROSETTA",
+            "3,2X6 DIN433-A2;",
+            "RIBE-R.BERGNER",
+            "GMBH +",
+            "CO.;"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor",
+            "merge_blocked_full_pattern",
+            "ambiguous_alignment"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 19,
+          "raw_fragments": [
+            "ROSETTA",
+            "3,2X6 UNI6592-A2;",
+            "MEC-BOLT,SPA;",
+            "ROSETTA 3,2X6 DIN433-A2; Bossard Group;",
+            "ROSETTA 3,2X6 UNI6592-A2 INOX DADI,SPA"
+          ],
+          "reconstructed_text": "ROSETTA 3,2X6 UNI6592-A2; MEC-BOLT,SPA; ROSETTA 3,2X6 DIN433-A2; Bossard Group; ROSETTA 3,2X6 UNI6592-A2 INOX DADI,SPA",
+          "extracted_columns": [
+            "ROSETTA",
+            "3,2X6 UNI6592-A2;",
+            "MEC-BOLT,SPA;",
+            "ROSETTA",
+            "3,2X6 DIN433-A2;",
+            "Bossard",
+            "Group;",
+            "ROSETTA",
+            "3,2X6 UNI6592-A2",
+            "INOX",
+            "DADI,SPA"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.35,
+          "warnings": [
+            "continuation_candidate",
+            "quantity_missing",
+            "parser_disagreement",
+            "continuation_attachment_uncertain",
+            "row_stitched",
+            "multiline_row_detected",
+            "possible_fragmentation",
+            "continuation_attached"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 22,
+          "raw_fragments": [
+            "0245",
+            "RP Rapporto di Progetto",
+            "(HW/FW/SW)",
+            "E0348983",
+            "01",
+            "01 Rapporto di progetto QUIRIS Laser Unit"
+          ],
+          "reconstructed_text": "0245 RP Rapporto di Progetto (HW/FW/SW) E0348983 01 01 Rapporto di progetto QUIRIS Laser Unit",
+          "extracted_columns": [
+            "0245",
+            "RP Rapporto di Progetto",
+            "(HW/FW/SW)",
+            "E0348983",
+            "01",
+            "01 Rapporto di progetto QUIRIS Laser Unit"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "quantity_missing",
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 23,
+          "raw_fragments": [
+            "0280",
+            "Minuteria",
+            "230501512",
+            "02 Hexagon socket head cap screws DIN",
+            "912-A2",
+            "25_1-25_6 NR",
+            "6 NO"
+          ],
+          "reconstructed_text": "0280 Minuteria 230501512 02 Hexagon socket head cap screws DIN 912-A2 25_1-25_6 NR 6 NO",
+          "extracted_columns": [
+            "0280",
+            "Minuteria",
+            "230501512",
+            "02 Hexagon socket head cap screws DIN",
+            "912-A2",
+            "25_1-25_6 NR",
+            "6 NO"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "quantity_missing",
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 24,
+          "raw_fragments": [
+            "0340",
+            "Minuteria",
+            "233101018",
+            "02 SPINA CILIN. H8 3X8",
+            "33_1-33_2 NR",
+            "2 NO",
+            "SPINA",
+            "3H8X8 UNI1707-A2;",
+            "MEC-BOLT,SPA;",
+            "SPINA 3H8X8 UNI1707-A2 MINUT-INOX,SRL"
+          ],
+          "reconstructed_text": "0340 Minuteria 233101018 02 SPINA CILIN. H8 3X8 33_1-33_2 NR 2 NO SPINA 3H8X8 UNI1707-A2; MEC-BOLT,SPA; SPINA 3H8X8 UNI1707-A2 MINUT-INOX,SRL",
+          "extracted_columns": [
+            "0340",
+            "Minuteria",
+            "233101018",
+            "02 SPINA CILIN. H8 3X8",
+            "33_1-33_2 NR",
+            "2 NO",
+            "SPINA",
+            "3H8X8 UNI1707-A2;",
+            "MEC-BOLT,SPA;",
+            "SPINA",
+            "3H8X8 UNI1707-A2",
+            "MINUT-INOX,SRL"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "quantity_missing",
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor",
+            "row_stitched",
+            "multiline_row_detected",
+            "possible_fragmentation",
+            "continuation_attached"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 26,
+          "raw_fragments": [
+            "0360",
+            "Imballo",
+            "E0029481",
+            "01",
+            "03 Targhetta di identificazione",
+            "35 NR",
+            "1"
+          ],
+          "reconstructed_text": "0360 Imballo E0029481 01 03 Targhetta di identificazione 35 NR 1",
+          "extracted_columns": [
+            "0360",
+            "Imballo",
+            "E0029481",
+            "01",
+            "03 Targhetta di identificazione",
+            "35 NR",
+            "1"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 27,
+          "raw_fragments": [
+            "0510",
+            "Ottico",
+            "E0259282",
+            "01",
+            "01 Laser Module B4 HP",
+            "51 NR",
+            "1"
+          ],
+          "reconstructed_text": "0510 Ottico E0259282 01 01 Laser Module B4 HP 51 NR 1",
+          "extracted_columns": [
+            "0510",
+            "Ottico",
+            "E0259282",
+            "01",
+            "01 Laser Module B4 HP",
+            "51 NR",
+            "1"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 28,
+          "raw_fragments": [
+            "0520",
+            "Ottico",
+            "E0257869",
+            "01",
+            "01 Laser Module B4b",
+            "52 NR",
+            "1"
+          ],
+          "reconstructed_text": "0520 Ottico E0257869 01 01 Laser Module B4b 52 NR 1",
+          "extracted_columns": [
+            "0520",
+            "Ottico",
+            "E0257869",
+            "01",
+            "01 Laser Module B4b",
+            "52 NR",
+            "1"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 29,
+          "raw_fragments": [
+            "0530",
+            "Scheda",
+            "E0256569",
+            "01",
+            "02 SK MECC QLU FLEX LASER",
+            "NR",
+            "2"
+          ],
+          "reconstructed_text": "0530 Scheda E0256569 01 02 SK MECC QLU FLEX LASER NR 2",
+          "extracted_columns": [
+            "0530",
+            "Scheda",
+            "E0256569",
+            "01",
+            "02 SK MECC QLU FLEX LASER",
+            "NR",
+            "2"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.7,
+          "warnings": [
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 30,
+          "raw_fragments": [
+            "6000",
+            "Istruzioni di Montaggio",
+            "E0266053",
+            "01",
+            "01 Istruzione di montaggio moduli laser"
+          ],
+          "reconstructed_text": "6000 Istruzioni di Montaggio E0266053 01 01 Istruzione di montaggio moduli laser",
+          "extracted_columns": [
+            "6000",
+            "Istruzioni di Montaggio",
+            "E0266053",
+            "01",
+            "01 Istruzione di montaggio moduli laser"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "quantity_missing",
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 31,
+          "raw_fragments": [
+            "6005",
+            "Procedure di test",
+            "E0306430",
+            "01",
+            "01 PC per E0181296 01 QUIRIS Laser Unit"
+          ],
+          "reconstructed_text": "6005 Procedure di test E0306430 01 01 PC per E0181296 01 QUIRIS Laser Unit",
+          "extracted_columns": [
+            "6005",
+            "Procedure di test",
+            "E0306430",
+            "01",
+            "01 PC per E0181296 01 QUIRIS Laser Unit"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "quantity_missing",
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 32,
+          "raw_fragments": [
+            "6010",
+            "Istruzioni di Montaggio",
+            "E0365706",
+            "01",
+            "01 Istruzioni di montaggio QLU"
+          ],
+          "reconstructed_text": "6010 Istruzioni di Montaggio E0365706 01 01 Istruzioni di montaggio QLU",
+          "extracted_columns": [
+            "6010",
+            "Istruzioni di Montaggio",
+            "E0365706",
+            "01",
+            "01 Istruzioni di montaggio QLU"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "quantity_missing",
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor"
+          ]
+        },
+        {
+          "source_file": "E0181296 01-06_BOM.pdf",
+          "page_number": 2,
+          "row_index": 33,
+          "raw_fragments": [
+            "6015",
+            "PC Procedura di",
+            "Collaudo",
+            "E0389719",
+            "01",
+            "01 Leakage test QLU",
+            "null Disegno E0181296 01.DRW 14 QUIRIS Laser Unit"
+          ],
+          "reconstructed_text": "6015 PC Procedura di Collaudo E0389719 01 01 Leakage test QLU null Disegno E0181296 01.DRW 14 QUIRIS Laser Unit",
+          "extracted_columns": [
+            "6015",
+            "PC Procedura di",
+            "Collaudo",
+            "E0389719",
+            "01",
+            "01 Leakage test QLU",
+            "null",
+            "Disegno",
+            "E0181296",
+            "01.DRW",
+            "14 QUIRIS Laser Unit"
+          ],
+          "parser_sources": [
+            "camelot_lattice",
+            "ocr_fallback",
+            "pdfplumber_table",
+            "pymupdf_words"
+          ],
+          "confidence": 0.55,
+          "warnings": [
+            "quantity_missing",
+            "parser_disagreement",
+            "item_anchor_detected",
+            "hard_merge_block_item_anchor",
+            "row_anchor_fields_locked",
+            "anchor_field_duplication_suspected",
+            "continuation_attachment_uncertain",
+            "continuation_to_expandable_field",
+            "row_stitched",
+            "multiline_row_detected",
+            "possible_fragmentation"
+          ]
+        }
+      ],
+      "parser_decision": {
+        "page_number": 2,
+        "selected_parser": "pymupdf_words",
+        "selected_score": 0.7125,
+        "score_details": [
+          {
+            "parser_name": "pymupdf_words",
+            "final_score": 0.7125,
+            "row_count": 34,
+            "item_ratio": 0.7647,
+            "quantity_ratio": 0.7941,
+            "header_ratio": 0.0,
+            "footer_ratio": 0.0,
+            "fragmentation_penalty": 0.0,
+            "reasons": [
+              "base_confidence=0.75",
+              "item_ratio=0.76",
+              "quantity_ratio=0.79",
+              "header_ratio=0.00",
+              "footer_ratio=0.00",
+              "fragmentation=0.00"
+            ]
+          },
+          {
+            "parser_name": "pdfplumber_table",
+            "final_score": 0.6984,
+            "row_count": 38,
+            "item_ratio": 0.6842,
+            "quantity_ratio": 0.7368,
+            "header_ratio": 0.0,
+            "footer_ratio": 0.0,
+            "fragmentation_penalty": 0.0,
+            "reasons": [
+              "base_confidence=0.80",
+              "item_ratio=0.68",
+              "quantity_ratio=0.74",
+              "header_ratio=0.00",
+              "footer_ratio=0.00",
+              "fragmentation=0.00"
+            ]
+          },
+          {
+            "parser_name": "camelot_lattice",
+            "final_score": 0.305,
+            "row_count": 1,
+            "item_ratio": 0.0,
+            "quantity_ratio": 0.0,
+            "header_ratio": 0.0,
+            "footer_ratio": 0.0,
+            "fragmentation_penalty": 0.0,
+            "reasons": [
+              "base_confidence=0.86",
+              "item_ratio=0.00",
+              "quantity_ratio=0.00",
+              "header_ratio=0.00",
+              "footer_ratio=0.00",
+              "fragmentation=0.00",
+              "low_final_score"
+            ]
+          },
+          {
+            "parser_name": "ocr_fallback",
+            "final_score": 0.0,
+            "row_count": 0,
+            "item_ratio": 0.0,
+            "quantity_ratio": 0.0,
+            "header_ratio": 0.0,
+            "footer_ratio": 0.0,
+            "fragmentation_penalty": 0.0,
+            "reasons": [
+              "no_rows"
+            ]
+          }
+        ],
+        "disagreement": true
+      },
+      "layout_model": {
+        "zone_header_cutoff": 17.849999999999998,
+        "zone_footer_cutoff": 326.2863830566406,
+        "header_lines": [],
+        "table_lines": [
+          "0170 Altro - Elemento Meccanico E0284699 01 01 Laser Support Brolis 17 NR 1",
+          "0175 Integrazione Meccanica E0284573 01 01 Assieme Tec B4 Mirsense 50 50_1-50_2 NR 2",
+          "0180 Minuteria C0019674 03 VTCEI M2.5X5 A4-70 ISO4762 14 14_1-14_12 NR 12 VTCEI M2.5X5 A4-70 ISO4762 COSTRUTTORE FITTIZIO",
+          "0185 Integrazione Meccanica E0284633 01 01 Assieme Tec Brolis 37 37 NR 1",
+          "0190 Altro - Elemento Meccanico E0284581 01 01 Laser Support Mirsense 39_1-39_2 NR 2",
+          "0195 Altro - Elemento Meccanico E0284596 01 01 Laser Bush Mirsense 28_1-28_4 NR 4",
+          "0200 Altro - Elemento Meccanico E0284696 01 01 Upper Laser Bush 21_1-21_4 NR 4",
+          "0205 Altro - Elemento Meccanico E0284698 01 01 Laser Spacer sp.1 20_1-20_4 NR 4",
+          "0210 Minuteria C0021768 02 VTCEI M3X10 A4-70 ISO4762 18_1-18_4 NR 4 VTCEI M3X10 A4-70 ISO4762 COSTRUTTORE FITTIZIO",
+          "0215 Altro - Elemento Meccanico E0284697 01 01 Lower Laser Bush 22_1-22_4 NR 4",
+          "0220 Altro - Elemento Meccanico E0284700 01 01 Laser Cover Brolis 38 NR 1",
+          "0225 Ottico E0141794 01 03 B1 BK3 Laser 23 23 NR 1",
+          "0230 Altro - Elemento Meccanico E0389258 01 01 OR QLU-QTU Interface NR 1",
+          "0235 Minuteria 232001032 02 ROSET.PIANA X VITE TC 2,7 5_1-5_28 NR 28 NO ROSETTA 2,7X5 UNI6592-A2; MEC-BOLT,SPA;",
+          "ROSETTA 2,7X5 UNI6592-A2; INOX DADI,SPA;",
+          "ROSETTA 2,7X5 DIN433-A2; Bossard Group;",
+          "ROSETTA 2,7X5 DIN433-A2 RIBE-R.BERGNER GMBH + CO.",
+          "0240 Minuteria 232001008 02 ROSET.PIANA X VITE TC 3,2 7_1-7_16 NR 16 NO ROSETTA 3,2X6 DIN433-A2; RIBE-R.BERGNER GMBH + CO.;",
+          "ROSETTA 3,2X6 UNI6592-A2; MEC-BOLT,SPA;",
+          "ROSETTA 3,2X6 DIN433-A2; Bossard Group;",
+          "ROSETTA 3,2X6 UNI6592-A2 INOX DADI,SPA",
+          "0245 RP Rapporto di Progetto (HW/FW/SW) E0348983 01 01 Rapporto di progetto QUIRIS Laser Unit",
+          "0280 Minuteria 230501512 02 Hexagon socket head cap screws DIN 912-A2 25_1-25_6 NR 6 NO",
+          "0340 Minuteria 233101018 02 SPINA CILIN. H8 3X8 33_1-33_2 NR 2 NO SPINA 3H8X8 UNI1707-A2; MEC-BOLT,SPA;",
+          "SPINA 3H8X8 UNI1707-A2 MINUT-INOX,SRL",
+          "0360 Imballo E0029481 01 03 Targhetta di identificazione 35 NR 1",
+          "0510 Ottico E0259282 01 01 Laser Module B4 HP 51 NR 1",
+          "0520 Ottico E0257869 01 01 Laser Module B4b 52 NR 1",
+          "0530 Scheda E0256569 01 02 SK MECC QLU FLEX LASER NR 2",
+          "6000 Istruzioni di Montaggio E0266053 01 01 Istruzione di montaggio moduli laser",
+          "6005 Procedure di test E0306430 01 01 PC per E0181296 01 QUIRIS Laser Unit",
+          "6010 Istruzioni di Montaggio E0365706 01 01 Istruzioni di montaggio QLU",
+          "6015 PC Procedura di Collaudo E0389719 01 01 Leakage test QLU",
+          "null Disegno E0181296 01.DRW 14 QUIRIS Laser Unit",
+          "A THIRD PARTY WITHOUT PRIOR AUTHORITION OF THE COMPANY SHALL BE PROSECUTED. PARTE DI TERZI SENZA AUTORIZZAZIONE DELLA SOCIETA' SARA' PERSEGUITO A TERMINI DI LEGGE.",
+          "Stato/Stage: RILASCIATO / RELEASED Nome/Code: E0181296 01 Rev: 06 Data Rilascio: 21/11/2025"
+        ],
+        "footer_lines": [
+          "THIS DOCUMENT CONTAINS PROPRIETARY INFORMATION OF ELETTRONICA S.p.A. ANY USE BY IL PRESENTE DOCUMENTO E' DI PROPRIETA' DELLA ELETTRONICA S.p.A. QUALSIASI SUO UTILIZZO DA Pagina / Sheet 2 / 2",
+          "Documento emesso con sistema di firma digitale/Released by digital signature - Autore/Originator: De Meo, Marco"
+        ],
+        "background_noise_lines": [],
+        "layout_warnings": [],
+        "layout_confidence": 0.9474,
+        "page_width": 842.0,
+        "page_height": 595.0,
+        "column_boundaries": [
+          30.148000717163086,
+          91.9379279051311,
+          112.48446655273438,
+          149.6219940185547,
+          176.9026641845703,
+          307.22562753100135,
+          369.23416817444377,
+          489.385009765625,
+          516.4852235035505,
+          580.5838012695312,
+          606.4149780273438,
+          658.9916719174835,
+          697.7736206054688,
+          718.3046417236328,
+          746.893798828125,
+          770.0475006103516
+        ],
+        "row_boundary_metrics": {
+          "candidate_item_anchor_count": 26,
+          "reconstructed_row_count": 29,
+          "merge_ratio": 0.14705882352941177
+        }
+      },
+      "warnings": [
+        "parser_disagreement"
+      ]
+    }
+  ],
+  "document_metadata": {
+    "documents": [
+      {
+        "source_file": "E0181296 01-06_BOM.pdf",
+        "source_file_hash": "6d76564f95814fe292ce12570d758e79f9cfba34919553705c4ec11b0cdd1765",
+        "document_id": "E0181296 01-06_BOM:6d76564f9581"
+      }
+    ]
+  }
 }
