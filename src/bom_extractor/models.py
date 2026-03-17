@@ -91,6 +91,9 @@ class PageOutput(BaseModel):
     header_type: str | None = None
     header_description: str | None = None
     header_fields_raw: list[str] = Field(default_factory=list)
+    header_raw_lines: list[str] = Field(default_factory=list)
+    header_bbox: tuple[float, float, float, float] | None = None
+    header_zone_confidence: float | None = None
     footer_fields_raw: list[str] = Field(default_factory=list)
     reconstructed_table: list[RowOutput] = Field(default_factory=list)
     parser_decision: dict[str, Any] = Field(default_factory=dict)
