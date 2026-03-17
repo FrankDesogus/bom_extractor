@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from statistics import median
 
 from ..models import RawRowRecord
 from ..utils import looks_like_code, looks_like_item, looks_like_quantity, normalize_space
@@ -8,6 +9,10 @@ from ..utils import looks_like_code, looks_like_item, looks_like_quantity, norma
 MAX_VERTICAL_GAP = 18.0
 MAX_STITCHED_FRAGMENTS = 3
 MAX_PARENT_LOOKBACK = 6
+LANE_TOLERANCE = 26.0
+ASSIGNMENT_TOLERANCE = 34.0
+
+UOM_TOKENS = {"NR", "PZ", "KG", "M", "MM", "CM", "SET", "MT", "EA"}
 
 
 @dataclass(frozen=True)
@@ -17,6 +22,279 @@ class ColumnRoleModel:
 
 
 ROLE_MODEL = ColumnRoleModel()
+
+
+@dataclass(frozen=True)
+class LaneCandidate:
+    role: str
+    x_center: float
+    score: float
+    supports: int
+    x_min: float
+    x_max: float
+
+
+@dataclass(frozen=True)
+class PageLaneModel:
+    lanes: dict[str, LaneCandidate]
+    lane_confidence_score: float
+    lane_overlaps: list[str]
+    lane_ambiguity_roles: list[str]
+
+
+def _token_centers(row: RawRowRecord) -> list[tuple[str, float]]:
+    word_boxes = row.metadata.get("word_boxes") if isinstance(row.metadata, dict) else None
+    if isinstance(word_boxes, list) and word_boxes:
+        out: list[tuple[str, float]] = []
+        for box in word_boxes:
+            text = normalize_space(str(box.get("text", "")))
+            if not text:
+                continue
+            x0 = float(box.get("x0", 0.0))
+            x1 = float(box.get("x1", x0))
+            out.append((text, (x0 + x1) / 2.0))
+        return out
+    if row.bbox_row and row.extracted_columns:
+        left, _, right, _ = row.bbox_row
+        width = max(1.0, right - left)
+        step = width / max(1, len(row.extracted_columns))
+        return [
+            (normalize_space(col), left + ((idx + 0.5) * step))
+            for idx, col in enumerate(row.extracted_columns)
+            if normalize_space(col)
+        ]
+    return []
+
+
+def _code_shape_score(token: str) -> float:
+    value = normalize_space(token)
+    compact = value.replace(" ", "")
+    if not compact:
+        return 0.0
+    length = len(compact)
+    alpha = sum(1 for ch in compact if ch.isalpha())
+    digits = sum(1 for ch in compact if ch.isdigit())
+    if digits < 4 or length < 7:
+        return 0.0
+    mix_bonus = 0.3 if alpha > 0 else 0.15
+    length_bonus = 0.3 if 8 <= length <= 16 else 0.12
+    return min(1.0, mix_bonus + length_bonus + (digits / max(1, length)) * 0.4)
+
+
+def _cluster_centers(samples: list[float], tolerance: float = LANE_TOLERANCE) -> list[tuple[float, int, float, float]]:
+    if not samples:
+        return []
+    ordered = sorted(samples)
+    clusters: list[list[float]] = [[ordered[0]]]
+    for value in ordered[1:]:
+        if abs(value - clusters[-1][-1]) <= tolerance:
+            clusters[-1].append(value)
+        else:
+            clusters.append([value])
+    return [(float(median(group)), len(group), min(group), max(group)) for group in clusters]
+
+
+def infer_page_lane_model(rows: list[RawRowRecord]) -> PageLaneModel:
+    role_samples: dict[str, list[float]] = {role: [] for role in ("item", "type", "code", "revision", "description", "uom", "quantity", "notes", "trade_name", "company_name")}
+    for row in rows:
+        for token, center in _token_centers(row):
+            low = token.lower()
+            if looks_like_item(token):
+                role_samples["item"].append(center)
+            if _code_shape_score(token) >= 0.6:
+                role_samples["code"].append(center)
+            if token.upper() in UOM_TOKENS:
+                role_samples["uom"].append(center)
+            if looks_like_quantity(token):
+                role_samples["quantity"].append(center)
+            if any(k in low for k in ("note", "remark", "spec", "finish", "hardware")):
+                role_samples["notes"].append(center)
+            if any(k in low for k in ("trade", "brand", "marca")):
+                role_samples["trade_name"].append(center)
+            if any(k in low for k in ("supplier", "company", "fornitore", "srl", "spa", "inc", "gmbh", "ltd", "llc")):
+                role_samples["company_name"].append(center)
+            if 1 <= len(token) <= 4 and token.isalnum() and any(ch.isdigit() for ch in token):
+                role_samples["revision"].append(center)
+            if token.isalpha() and len(token) <= 8 and token.upper() not in UOM_TOKENS:
+                role_samples["type"].append(center)
+            if len(token) >= 4 and not looks_like_quantity(token):
+                role_samples["description"].append(center)
+
+    lanes: dict[str, LaneCandidate] = {}
+    ambiguity_roles: list[str] = []
+    for role, samples in role_samples.items():
+        clusters = _cluster_centers(samples)
+        if not clusters:
+            continue
+        clusters = sorted(clusters, key=lambda c: c[1], reverse=True)
+        best = clusters[0]
+        support = best[1]
+        score = min(1.0, (support / max(1, len(rows))) * 1.6)
+        if len(clusters) > 1 and clusters[1][1] >= max(2, int(best[1] * 0.75)):
+            ambiguity_roles.append(role)
+            score *= 0.75
+        lanes[role] = LaneCandidate(role=role, x_center=best[0], score=round(score, 3), supports=support, x_min=best[2], x_max=best[3])
+
+    if "type" in lanes and "revision" in lanes and "code" in lanes:
+        type_x = lanes["type"].x_center
+        rev_x = lanes["revision"].x_center
+        code = lanes["code"]
+        if type_x <= code.x_center <= rev_x or rev_x <= code.x_center <= type_x:
+            pass
+        else:
+            ambiguity_roles.append("code")
+            lanes["code"] = LaneCandidate(**{**lanes["code"].__dict__, "score": round(lanes["code"].score * 0.8, 3)})
+
+    overlaps: list[str] = []
+    ordered = sorted(lanes.values(), key=lambda lane: lane.x_center)
+    for left, right in zip(ordered, ordered[1:]):
+        if left.x_max + 2 >= right.x_min:
+            overlaps.append(f"{left.role}:{right.role}")
+
+    confidence = sum(l.score for l in lanes.values()) / max(1, len(lanes))
+    if overlaps:
+        confidence *= 0.88
+    if ambiguity_roles:
+        confidence *= 0.85
+
+    return PageLaneModel(
+        lanes=lanes,
+        lane_confidence_score=round(max(0.0, min(1.0, confidence)), 3),
+        lane_overlaps=sorted(set(overlaps)),
+        lane_ambiguity_roles=sorted(set(ambiguity_roles)),
+    )
+
+
+def _nearest_lane_role(x: float, lane_model: PageLaneModel, allowed_roles: tuple[str, ...]) -> tuple[str | None, float]:
+    best_role: str | None = None
+    best_dist = 1e9
+    for role in allowed_roles:
+        lane = lane_model.lanes.get(role)
+        if lane is None:
+            continue
+        dist = abs(lane.x_center - x)
+        if dist < best_dist:
+            best_role = role
+            best_dist = dist
+    if best_role is None:
+        return None, 0.0
+    certainty = max(0.0, 1.0 - (best_dist / ASSIGNMENT_TOLERANCE))
+    return best_role, round(certainty, 3)
+
+
+def _set_if_missing(row: RawRowRecord, field: str, value: str) -> None:
+    if not getattr(row, field):
+        setattr(row, field, normalize_space(value))
+
+
+def _assign_fields_by_lanes(row: RawRowRecord, lane_model: PageLaneModel) -> None:
+    tokens = _token_centers(row)
+    if not tokens:
+        return
+    uncertain = False
+    for token, x in tokens:
+        if looks_like_item(token):
+            _set_if_missing(row, "item", token)
+            continue
+        if token.upper() in UOM_TOKENS:
+            _set_if_missing(row, "uom", token)
+            continue
+        if looks_like_quantity(token):
+            role, certainty = _nearest_lane_role(x, lane_model, ("quantity", "revision"))
+            if role == "quantity":
+                _set_if_missing(row, "quantity_raw", token)
+            elif role == "revision" and not row.revision:
+                _set_if_missing(row, "revision", token)
+            if certainty < 0.4:
+                uncertain = True
+            continue
+        if _code_shape_score(token) >= 0.6:
+            role, certainty = _nearest_lane_role(x, lane_model, ("code", "type", "description"))
+            if role == "code":
+                _set_if_missing(row, "code", token)
+            elif role == "type":
+                _set_if_missing(row, "type_raw", token)
+            else:
+                row.description = _append_field_value(row.description, token)
+            if certainty < 0.4:
+                uncertain = True
+            continue
+
+        role, certainty = _nearest_lane_role(
+            x,
+            lane_model,
+            ("type", "revision", "description", "notes", "trade_name", "company_name"),
+        )
+        if role == "type":
+            _set_if_missing(row, "type_raw", token)
+        elif role == "revision" and len(token) <= 6 and token.isalnum():
+            _set_if_missing(row, "revision", token)
+        elif role in {"notes", "trade_name", "company_name"}:
+            setattr(row, role, _append_field_value(getattr(row, role), token))
+        else:
+            row.description = _append_field_value(row.description, token)
+        if certainty < 0.35:
+            uncertain = True
+
+    if uncertain and "field_assignment_uncertain" not in row.warnings:
+        row.warnings.append("field_assignment_uncertain")
+
+    if row.uom and row.quantity_raw and row.uom == row.quantity_raw and "field_assignment_uncertain" not in row.warnings:
+        row.warnings.append("field_assignment_uncertain")
+
+
+def apply_page_lane_inference(rows: list[RawRowRecord]) -> tuple[list[RawRowRecord], dict[str, float | int]]:
+    lane_model = infer_page_lane_model(rows)
+    for row in rows:
+        row.metadata["page_lane_model"] = {
+            "lane_confidence_score": lane_model.lane_confidence_score,
+            "lane_overlaps": lane_model.lane_overlaps,
+            "lane_ambiguity_roles": lane_model.lane_ambiguity_roles,
+            "lanes": {
+                role: {
+                    "x_center": lane.x_center,
+                    "score": lane.score,
+                    "supports": lane.supports,
+                    "x_min": lane.x_min,
+                    "x_max": lane.x_max,
+                }
+                for role, lane in lane_model.lanes.items()
+            },
+        }
+        _assign_fields_by_lanes(row, lane_model)
+
+        if lane_model.lane_ambiguity_roles and "lane_ambiguity" not in row.warnings:
+            row.warnings.append("lane_ambiguity")
+
+        if row.item and row.code:
+            item_lane = lane_model.lanes.get("item")
+            code_lane = lane_model.lanes.get("code")
+            if item_lane and code_lane and abs(item_lane.x_center - code_lane.x_center) < 18:
+                if "anchor_lane_conflict" not in row.warnings:
+                    row.warnings.append("anchor_lane_conflict")
+
+        conf = float(row.parser_confidence)
+        conf += (lane_model.lane_confidence_score - 0.5) * 0.12
+        if "field_assignment_uncertain" in row.warnings:
+            conf -= 0.12
+        if "lane_ambiguity" in row.warnings:
+            conf -= 0.08
+        if "anchor_lane_conflict" in row.warnings:
+            conf -= 0.1
+        row.parser_confidence = max(0.0, min(1.0, round(conf, 3)))
+
+    metrics: dict[str, float | int] = {
+        "lane_count": len(lane_model.lanes),
+        "lane_confidence_score": lane_model.lane_confidence_score,
+        "field_assignment_uncertain_count": sum(1 for r in rows if "field_assignment_uncertain" in r.warnings),
+        "anchor_lane_conflict_count": sum(1 for r in rows if "anchor_lane_conflict" in r.warnings),
+        "rows_with_clean_anchor_alignment": sum(
+            1
+            for r in rows
+            if r.item and r.code and "anchor_lane_conflict" not in r.warnings and "field_assignment_uncertain" not in r.warnings
+        ),
+    }
+    return rows, metrics
 
 
 def _vertically_aligned(previous: RawRowRecord, current: RawRowRecord) -> bool:
@@ -194,6 +472,23 @@ def _route_expandable_field(parent: RawRowRecord, row: RawRowRecord) -> str:
         return "trade_name"
     if any(k in lowered for k in ("note", "remark", "spec", "finish", "hardware")):
         return "notes"
+    lane_model = parent.metadata.get("page_lane_model") if isinstance(parent.metadata, dict) else None
+    if isinstance(lane_model, dict) and row.bbox_row:
+        lanes = lane_model.get("lanes") if isinstance(lane_model.get("lanes"), dict) else {}
+        center_x = (row.bbox_row[0] + row.bbox_row[2]) / 2.0
+        nearest: tuple[str, float] | None = None
+        for role in ROLE_MODEL.multi_line_expandable_fields:
+            lane = lanes.get(role)
+            if not isinstance(lane, dict):
+                continue
+            lane_x = lane.get("x_center")
+            if not isinstance(lane_x, (float, int)):
+                continue
+            dist = abs(center_x - float(lane_x))
+            if nearest is None or dist < nearest[1]:
+                nearest = (role, dist)
+        if nearest and nearest[1] <= ASSIGNMENT_TOLERANCE + 22:
+            return nearest[0]
     if "_" in text and any(ch.isdigit() for ch in text):
         return "notes"
     if parent.notes and (len(text.split()) <= 5 or text[:1].islower()):
@@ -236,6 +531,7 @@ def _merge_continuation_by_roles(prev: RawRowRecord, row: RawRowRecord) -> None:
         target = "description"
     incoming_text = normalize_space(row.raw_text)
     setattr(prev, target, _append_field_value(getattr(prev, target), incoming_text))
+    prev.metadata[f"{target}_attachments"] = int(prev.metadata.get(f"{target}_attachments", 0)) + 1
     if "continuation_to_expandable_field" not in prev.warnings:
         prev.warnings.append("continuation_to_expandable_field")
 
@@ -254,6 +550,7 @@ def continuation_metrics(rows: list[RawRowRecord]) -> dict[str, float | int]:
     isolated = 0
     uncertain = 0
     duplication = 0
+    expandable_attachment_count = 0
     for row in rows:
         fragments = row.metadata.get("stitched_fragments", []) if isinstance(row.metadata, dict) else []
         if isinstance(fragments, list):
@@ -264,6 +561,8 @@ def continuation_metrics(rows: list[RawRowRecord]) -> dict[str, float | int]:
             uncertain += 1
         if "anchor_field_duplication_suspected" in row.warnings:
             duplication += 1
+        for key in ("description_attachments", "notes_attachments", "trade_name_attachments", "company_name_attachments"):
+            expandable_attachment_count += int(row.metadata.get(key, 0) if isinstance(row.metadata, dict) else 0)
 
     denom = max(1, attached + isolated)
     return {
@@ -272,6 +571,7 @@ def continuation_metrics(rows: list[RawRowRecord]) -> dict[str, float | int]:
         "uncertain_continuation_count": uncertain,
         "continuation_attachment_rate": round(attached / denom, 3),
         "anchor_field_duplication_events": duplication,
+        "expandable_field_attachment_count": expandable_attachment_count,
     }
 
 def stitch_multiline_rows(rows: list[RawRowRecord]) -> list[RawRowRecord]:
@@ -283,6 +583,8 @@ def stitch_multiline_rows(rows: list[RawRowRecord]) -> list[RawRowRecord]:
     merge_events = 0
 
     for row in rows:
+        if row.item and row.code and row.revision and "continuation_candidate" in row.warnings:
+            row.warnings.remove("continuation_candidate")
         continuation = _continuation_candidate(row)
         if continuation and _anchor_like_signals(row) >= 4:
             if "anchor_field_duplication_suspected" not in row.warnings:

@@ -12,7 +12,7 @@ from .normalizer import stitch_multiline_rows, weak_map_columns
 from .normalization import apply_structure_assisted_reconstruction
 from .normalization.header_extraction import extract_targeted_header_fields
 from .normalization.row_boundary_engine import apply_row_boundary_engine
-from .normalization.row_reconstruction import continuation_metrics
+from .normalization.row_reconstruction import apply_page_lane_inference, continuation_metrics
 from .parsers.camelot_parser import CamelotLatticeParser
 from .parsers.ocr_parser import OCRFallbackParser
 from .parsers.pdfplumber_parser import PdfPlumberTableParser
@@ -204,9 +204,12 @@ class ExtractionPipeline:
                 row.warnings.append("parser_disagreement")
             normalized.append(row)
 
+        normalized, lane_metrics = apply_page_lane_inference(normalized)
+
         boundary_rows, boundary_warnings, boundary_metrics = apply_row_boundary_engine(normalized, parser_results)
         normalized = stitch_multiline_rows(boundary_rows)
         boundary_metrics.update(continuation_metrics(normalized))
+        boundary_metrics.update(lane_metrics)
 
         for warning in boundary_warnings:
             if warning not in page_output.warnings:
