@@ -30,6 +30,8 @@ class RawRowRecord(BaseModel):
     code: str | None = None
     revision: str | None = None
     description: str | None = None
+    trade_name: str | None = None
+    company_name: str | None = None
     uom: str | None = None
     quantity_raw: str | None = None
     notes: str | None = None
@@ -84,6 +86,10 @@ class RowOutput(BaseModel):
 
 class PageOutput(BaseModel):
     page_number: int
+    header_code: str | None = None
+    header_revision: str | None = None
+    header_type: str | None = None
+    header_description: str | None = None
     header_fields_raw: list[str] = Field(default_factory=list)
     footer_fields_raw: list[str] = Field(default_factory=list)
     reconstructed_table: list[RowOutput] = Field(default_factory=list)

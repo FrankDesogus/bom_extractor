@@ -1,10 +1,21 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from ..models import RawRowRecord
 from ..utils import looks_like_code, looks_like_item, looks_like_quantity, normalize_space
 
 MAX_VERTICAL_GAP = 18.0
 MAX_STITCHED_FRAGMENTS = 3
+
+
+@dataclass(frozen=True)
+class ColumnRoleModel:
+    single_line_anchor_fields: tuple[str, ...] = ("item", "code", "revision", "uom", "quantity_raw")
+    multi_line_expandable_fields: tuple[str, ...] = ("description", "notes", "trade_name", "company_name")
+
+
+ROLE_MODEL = ColumnRoleModel()
 
 
 def _vertically_aligned(previous: RawRowRecord, current: RawRowRecord) -> bool:
@@ -43,13 +54,105 @@ def _new_item_appears(row: RawRowRecord) -> bool:
     return looks_like_item(row.extracted_columns[0])
 
 
-
-
 def _starts_with_item_anchor(row: RawRowRecord) -> bool:
     atomic = row.metadata.get("atomic_line") if isinstance(row.metadata, dict) else None
     if isinstance(atomic, dict) and atomic.get("starts_with_item_anchor") is True:
         return True
     return _new_item_appears(row)
+
+
+def _row_anchor_status(row: RawRowRecord) -> dict[str, bool]:
+    return {
+        "item": bool(row.item),
+        "code": bool(row.code),
+        "revision": bool(row.revision),
+        "uom": bool(row.uom),
+        "quantity_raw": bool(row.quantity_raw),
+    }
+
+
+def _anchor_fields_locked(status: dict[str, bool]) -> bool:
+    return status["item"] and status["code"] and status["revision"]
+
+
+def _append_field_value(current: str | None, incoming: str | None) -> str | None:
+    incoming_norm = normalize_space(incoming or "")
+    if not incoming_norm:
+        return current
+    current_norm = normalize_space(current or "")
+    if not current_norm:
+        return incoming_norm
+    if incoming_norm.lower() in current_norm.lower():
+        return current
+    return f"{current_norm} | {incoming_norm}"
+
+
+def _guess_expandable_field_target(prev: RawRowRecord, row: RawRowRecord) -> str:
+    text = normalize_space(row.raw_text).lower()
+    row_center_x = None
+    if row.bbox_row:
+        row_center_x = (row.bbox_row[0] + row.bbox_row[2]) / 2
+    prev_center_x = None
+    if prev.bbox_row:
+        prev_center_x = (prev.bbox_row[0] + prev.bbox_row[2]) / 2
+
+    if any(k in text for k in ("trade", "marca", "brand")):
+        return "trade_name"
+    if any(k in text for k in ("company", "fornitore", "supplier", "srl", "spa", "inc", "gmbh", "ltd", "llc")):
+        return "company_name"
+    if any(k in text for k in ("note", "remark", "spec", "finish", "hardware")):
+        return "notes"
+
+    if row_center_x is not None and prev_center_x is not None and row_center_x > prev_center_x + 48:
+        return "notes"
+    return "description"
+
+
+def _merge_continuation_by_roles(prev: RawRowRecord, row: RawRowRecord) -> None:
+    anchor_status = _row_anchor_status(prev)
+    locked = _anchor_fields_locked(anchor_status)
+    if locked and "row_anchor_fields_locked" not in prev.warnings:
+        prev.warnings.append("row_anchor_fields_locked")
+
+    incoming_status = _row_anchor_status(row)
+    for field in ROLE_MODEL.single_line_anchor_fields:
+        incoming = getattr(row, field)
+        if not incoming:
+            continue
+        existing = getattr(prev, field)
+        if existing and normalize_space(str(existing)) != normalize_space(str(incoming)):
+            if "anchor_field_duplication_suspected" not in prev.warnings:
+                prev.warnings.append("anchor_field_duplication_suspected")
+            if "continuation_attachment_uncertain" not in prev.warnings:
+                prev.warnings.append("continuation_attachment_uncertain")
+            continue
+        if existing:
+            continue
+        if field in ("item", "code", "revision") and locked:
+            if "anchor_field_duplication_suspected" not in prev.warnings:
+                prev.warnings.append("anchor_field_duplication_suspected")
+            continue
+        if field in ("uom", "quantity_raw") and anchor_status[field]:
+            if "anchor_field_duplication_suspected" not in prev.warnings:
+                prev.warnings.append("anchor_field_duplication_suspected")
+            continue
+        setattr(prev, field, incoming)
+
+    target = _guess_expandable_field_target(prev, row)
+    if target not in ROLE_MODEL.multi_line_expandable_fields:
+        target = "description"
+    incoming_text = normalize_space(row.raw_text)
+    setattr(prev, target, _append_field_value(getattr(prev, target), incoming_text))
+    if "continuation_to_expandable_field" not in prev.warnings:
+        prev.warnings.append("continuation_to_expandable_field")
+
+    for field in ROLE_MODEL.multi_line_expandable_fields:
+        incoming = getattr(row, field)
+        if incoming:
+            setattr(prev, field, _append_field_value(getattr(prev, field), incoming))
+
+    if not any(incoming_status.values()) and "continuation_attachment_uncertain" not in prev.warnings:
+        prev.warnings.append("continuation_attachment_uncertain")
 
 
 def stitch_multiline_rows(rows: list[RawRowRecord]) -> list[RawRowRecord]:
@@ -77,8 +180,6 @@ def stitch_multiline_rows(rows: list[RawRowRecord]) -> list[RawRowRecord]:
             if _row_has_full_pattern(prev):
                 if "merge_blocked_full_pattern" not in prev.warnings:
                     prev.warnings.append("merge_blocked_full_pattern")
-                stitched.append(row)
-                continue
 
             fragments = prev.metadata.setdefault("stitched_fragments", [])
             if len(fragments) >= MAX_STITCHED_FRAGMENTS:
@@ -112,8 +213,11 @@ def stitch_multiline_rows(rows: list[RawRowRecord]) -> list[RawRowRecord]:
                     "row_index_on_page": row.row_index_on_page,
                 }
             )
+            prev.metadata.setdefault("raw_fragments", [prev.raw_text])
+            prev.metadata["raw_fragments"].append(row.raw_text)
             prev.raw_text = normalize_space(f"{prev.raw_text} {row.raw_text}")
             prev.extracted_columns.extend(row.extracted_columns)
+            _merge_continuation_by_roles(prev, row)
             if prev.bbox_row and row.bbox_row:
                 prev.bbox_row = (
                     min(prev.bbox_row[0], row.bbox_row[0]),

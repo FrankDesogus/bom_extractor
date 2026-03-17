@@ -8,6 +8,7 @@ def _row(
     cols: list[str],
     warnings: list[str] | None = None,
     bbox: tuple[float, float, float, float] | None = None,
+    **fields,
 ) -> RawRowRecord:
     return RawRowRecord(
         source_file="a.pdf",
@@ -21,6 +22,7 @@ def _row(
         parser_name="x",
         warnings=warnings or [],
         bbox_row=bbox,
+        **fields,
     )
 
 
@@ -76,3 +78,54 @@ def test_limits_excessive_fragment_stitching():
     out = stitch_multiline_rows(rows)
     assert len(out) == 2
     assert "excessive_row_merge_detected" in out[0].warnings
+
+
+def test_continuation_does_not_overwrite_anchor_fields_when_locked():
+    rows = [
+        _row(
+            1,
+            "0010 TYPE E0181296 01 NR 2",
+            ["0010", "TYPE", "E0181296", "01", "NR", "2"],
+            bbox=(10, 100, 240, 108),
+            item="0010",
+            code="E0181296",
+            revision="01",
+            uom="NR",
+            quantity_raw="2",
+            description="BASE DESC",
+        ),
+        _row(
+            2,
+            "WRONG E9999999 03 KG 9 extra notes",
+            ["WRONG", "E9999999", "03", "KG", "9", "extra", "notes"],
+            ["continuation_candidate"],
+            bbox=(20, 111, 250, 119),
+            code="E9999999",
+            revision="03",
+            uom="KG",
+            quantity_raw="9",
+            notes="extra notes",
+        ),
+    ]
+    out = stitch_multiline_rows(rows)
+    assert len(out) == 1
+    merged = out[0]
+    assert merged.item == "0010"
+    assert merged.code == "E0181296"
+    assert merged.revision == "01"
+    assert merged.uom == "NR"
+    assert merged.quantity_raw == "2"
+    assert "anchor_field_duplication_suspected" in merged.warnings
+    assert "row_anchor_fields_locked" in merged.warnings
+    assert "continuation_to_expandable_field" in merged.warnings
+
+
+def test_continuation_targets_company_or_notes_by_lexical_shape():
+    rows = [
+        _row(1, "0010 TYPE E0181296 01 NR 2", ["0010"], bbox=(10, 100, 220, 108), item="0010", code="E0181296", revision="01"),
+        _row(2, "supplier ACME SRL", ["supplier", "ACME", "SRL"], ["continuation_candidate"], bbox=(100, 111, 250, 119)),
+    ]
+    out = stitch_multiline_rows(rows)
+    assert len(out) == 1
+    assert out[0].company_name
+    assert "ACME" in out[0].company_name
