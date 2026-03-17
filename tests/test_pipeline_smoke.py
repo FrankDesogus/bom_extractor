@@ -39,5 +39,13 @@ def test_pipeline_smoke_repo_sample(tmp_path):
         "uncertain_continuation_count",
         "continuation_attachment_rate",
         "anchor_field_duplication_events",
+        "lane_count",
+        "lane_confidence_score",
+        "field_assignment_uncertain_count",
+        "anchor_lane_conflict_count",
+        "rows_with_clean_anchor_alignment",
+        "expandable_field_attachment_count",
     ):
         assert key in metrics
+
+    assert metrics["lane_count"] >= 1

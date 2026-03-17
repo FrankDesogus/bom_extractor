@@ -1,5 +1,6 @@
 from bom_extractor.models import RawRowRecord
 from bom_extractor.normalization import stitch_multiline_rows
+from bom_extractor.normalization.row_reconstruction import apply_page_lane_inference
 
 
 def _row(
@@ -164,3 +165,56 @@ def test_orphan_continuation_fragment_is_preserved_with_warning():
     assert len(out) == 2
     assert "orphan_continuation_fragment" in out[1].warnings
     assert "parent_row_uncertain" in out[1].warnings
+
+
+def test_lane_inference_sets_model_and_keeps_uom_qty_split():
+    rows = [
+        _row(
+            1,
+            "0010 TYPE E0181296 01 NR 2",
+            ["0010", "TYPE", "E0181296", "01", "NR", "2"],
+            bbox=(10, 100, 250, 108),
+            metadata={
+                "word_boxes": [
+                    {"text": "0010", "x0": 10, "x1": 30},
+                    {"text": "TYPE", "x0": 45, "x1": 80},
+                    {"text": "E0181296", "x0": 95, "x1": 150},
+                    {"text": "01", "x0": 165, "x1": 178},
+                    {"text": "NR", "x0": 195, "x1": 210},
+                    {"text": "2", "x0": 225, "x1": 232},
+                ]
+            },
+        ),
+        _row(
+            2,
+            "0020 TYPE E0181297 02 KG 4",
+            ["0020", "TYPE", "E0181297", "02", "KG", "4"],
+            bbox=(10, 112, 250, 120),
+            metadata={
+                "word_boxes": [
+                    {"text": "0020", "x0": 10, "x1": 30},
+                    {"text": "TYPE", "x0": 45, "x1": 80},
+                    {"text": "E0181297", "x0": 95, "x1": 150},
+                    {"text": "02", "x0": 165, "x1": 178},
+                    {"text": "KG", "x0": 195, "x1": 210},
+                    {"text": "4", "x0": 225, "x1": 232},
+                ]
+            },
+        ),
+    ]
+    out, metrics = apply_page_lane_inference(rows)
+    assert metrics["lane_count"] >= 5
+    assert metrics["lane_confidence_score"] > 0
+    assert out[0].metadata.get("page_lane_model")
+    assert out[0].uom != out[0].quantity_raw
+    assert out[1].uom != out[1].quantity_raw
+
+
+def test_complete_anchor_row_not_marked_as_continuation_candidate():
+    rows = [
+        _row(1, "0010 TYPE E0181296 01 NR 2", ["0010", "TYPE", "E0181296", "01", "NR", "2"], bbox=(10, 100, 220, 108), item="0010", code="E0181296", revision="01", uom="NR", quantity_raw="2"),
+        _row(2, "0020 TYPE E0181297 01 NR 3", ["0020", "TYPE", "E0181297", "01", "NR", "3"], ["continuation_candidate"], bbox=(10, 112, 220, 120), item="0020", code="E0181297", revision="01", uom="NR", quantity_raw="3"),
+    ]
+    out = stitch_multiline_rows(rows)
+    assert len(out) == 2
+    assert "continuation_candidate" not in out[1].warnings

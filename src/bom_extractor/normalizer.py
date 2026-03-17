@@ -7,6 +7,40 @@ from .utils import looks_like_code, looks_like_header, looks_like_item, looks_li
 UOM_TOKENS = {"NR", "PZ", "KG", "M", "MM", "CM", "SET", "MT", "EA"}
 
 
+def _lane_hint(row: RawRowRecord, role: str) -> float | None:
+    lane_model = row.metadata.get("page_lane_model") if isinstance(row.metadata, dict) else None
+    if not isinstance(lane_model, dict):
+        return None
+    lanes = lane_model.get("lanes")
+    lane = lanes.get(role) if isinstance(lanes, dict) else None
+    if not isinstance(lane, dict):
+        return None
+    value = lane.get("x_center")
+    return float(value) if isinstance(value, (float, int)) else None
+
+
+def _token_centers(row: RawRowRecord) -> list[tuple[str, float]]:
+    word_boxes = row.metadata.get("word_boxes") if isinstance(row.metadata, dict) else None
+    if isinstance(word_boxes, list) and word_boxes:
+        out: list[tuple[str, float]] = []
+        for box in word_boxes:
+            text = normalize_space(str(box.get("text", "")))
+            if text:
+                x0 = float(box.get("x0", 0.0))
+                x1 = float(box.get("x1", x0))
+                out.append((text, (x0 + x1) / 2.0))
+        return out
+    return []
+
+
+def _nearest_token(tokens: list[tuple[str, float]], target_x: float, predicate) -> str | None:
+    candidates = [(abs(x - target_x), text) for text, x in tokens if predicate(text)]
+    if not candidates:
+        return None
+    candidates.sort(key=lambda pair: pair[0])
+    return candidates[0][1]
+
+
 def weak_map_columns(row: RawRowRecord) -> RawRowRecord:
     cols = [normalize_space(c) for c in row.extracted_columns if normalize_space(c)]
     row.extracted_columns = cols
@@ -17,6 +51,29 @@ def weak_map_columns(row: RawRowRecord) -> RawRowRecord:
 
     if not cols:
         return row
+
+    token_centers = _token_centers(row)
+    code_x = _lane_hint(row, "code")
+    rev_x = _lane_hint(row, "revision")
+    uom_x = _lane_hint(row, "uom")
+    qty_x = _lane_hint(row, "quantity")
+
+    if token_centers and code_x is not None and row.code is None:
+        lane_code = _nearest_token(token_centers, code_x, looks_like_code)
+        if lane_code:
+            row.code = lane_code
+    if token_centers and rev_x is not None and row.revision is None:
+        lane_rev = _nearest_token(token_centers, rev_x, lambda t: t.isalnum() and 0 < len(t) <= 6)
+        if lane_rev and not looks_like_item(lane_rev):
+            row.revision = lane_rev
+    if token_centers and uom_x is not None and row.uom is None:
+        lane_uom = _nearest_token(token_centers, uom_x, lambda t: t.upper() in UOM_TOKENS)
+        if lane_uom:
+            row.uom = lane_uom
+    if token_centers and qty_x is not None and row.quantity_raw is None:
+        lane_qty = _nearest_token(token_centers, qty_x, looks_like_quantity)
+        if lane_qty:
+            row.quantity_raw = lane_qty
 
     if looks_like_header(row.raw_text):
         row.warnings.append("header_like_content")
