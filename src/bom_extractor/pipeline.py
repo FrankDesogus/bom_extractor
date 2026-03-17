@@ -10,6 +10,7 @@ from .logging_utils import configure_logging
 from .models import DocumentSummary, PageContext, PageOutput, RawRowRecord, RowOutput
 from .normalizer import stitch_multiline_rows, weak_map_columns
 from .normalization import apply_structure_assisted_reconstruction
+from .normalization.header_extraction import extract_targeted_header_fields
 from .normalization.row_boundary_engine import apply_row_boundary_engine
 from .parsers.camelot_parser import CamelotLatticeParser
 from .parsers.ocr_parser import OCRFallbackParser
@@ -100,9 +101,14 @@ class ExtractionPipeline:
                     raw_page_text=normalize_space(page.get_text("text")),
                 )
                 page_ctx.layout_metadata = self._build_page_layout(page, page_ctx)
+                header_info = extract_targeted_header_fields(page_ctx.layout_metadata.get("header_lines", []))
                 page_output = PageOutput(
                     page_number=page_ctx.page_number,
-                    header_fields_raw=page_ctx.layout_metadata.get("header_lines", []),
+                    header_code=header_info.get("header_code"),
+                    header_revision=header_info.get("header_revision"),
+                    header_type=header_info.get("header_type"),
+                    header_description=header_info.get("header_description"),
+                    header_fields_raw=header_info.get("header_raw_lines", []),
                     footer_fields_raw=page_ctx.layout_metadata.get("footer_lines", []),
                     layout_model=page_ctx.layout_metadata,
                     warnings=list(page_ctx.layout_metadata.get("layout_warnings", [])),
@@ -110,6 +116,10 @@ class ExtractionPipeline:
                 summary.page_layouts.append({
                     "page_number": page_ctx.page_number,
                     "header_fields_raw": page_output.header_fields_raw,
+                    "header_code": page_output.header_code,
+                    "header_revision": page_output.header_revision,
+                    "header_type": page_output.header_type,
+                    "header_description": page_output.header_description,
                     "footer_fields_raw": page_output.footer_fields_raw,
                     "page_warnings": page_output.warnings,
                 })
@@ -202,16 +212,27 @@ class ExtractionPipeline:
     def _decontaminate_page_rows(self, rows: list[RawRowRecord]) -> list[RawRowRecord]:
         if not rows:
             return rows
+        cleaned: list[RawRowRecord] = []
         for row in rows:
+            atomic = row.metadata.get("atomic_line") if isinstance(row.metadata, dict) else None
+            starts_anchor = isinstance(atomic, dict) and atomic.get("starts_with_item_anchor") is True
             if "header_row" in row.warnings:
-                for flag in ("probable_header_contamination", "header_contamination_detected"):
+                for flag in ("probable_header_contamination", "header_contamination_detected", "probable_header_leakage"):
                     if flag not in row.warnings:
                         row.warnings.append(flag)
             if "footer_row" in row.warnings:
                 for flag in ("probable_footer_contamination", "footer_contamination_detected"):
                     if flag not in row.warnings:
                         row.warnings.append(flag)
-        return rows
+
+            suppress_from_table = (
+                ("probable_header_leakage" in row.warnings or "header_row" in row.warnings)
+                and not starts_anchor
+            )
+            if suppress_from_table:
+                continue
+            cleaned.append(row)
+        return cleaned
 
     def _build_page_layout(self, page: fitz.Page, page_ctx: PageContext) -> dict:
         words = page.get_text("words") or []
