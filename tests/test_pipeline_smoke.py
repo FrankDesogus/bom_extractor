@@ -31,3 +31,13 @@ def test_pipeline_smoke_repo_sample(tmp_path):
     assert hasattr(header_page, "header_revision")
     assert hasattr(header_page, "header_type")
     assert hasattr(header_page, "header_description")
+
+    metrics = header_page.layout_model.get("row_boundary_metrics", {})
+    for key in (
+        "isolated_continuation_count",
+        "attached_continuation_count",
+        "uncertain_continuation_count",
+        "continuation_attachment_rate",
+        "anchor_field_duplication_events",
+    ):
+        assert key in metrics
