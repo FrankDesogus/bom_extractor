@@ -102,7 +102,11 @@ class ExtractionPipeline:
                     raw_page_text=normalize_space(page.get_text("text")),
                 )
                 page_ctx.layout_metadata = self._build_page_layout(page, page_ctx)
-                header_info = extract_targeted_header_fields(page_ctx.layout_metadata.get("header_lines", []))
+                header_info = extract_targeted_header_fields(
+                    page_ctx.layout_metadata.get("header_lines", []),
+                    words=page_ctx.layout_metadata.get("page_words", []),
+                    page_height=page_ctx.page_height,
+                )
                 page_output = PageOutput(
                     page_number=page_ctx.page_number,
                     header_code=header_info.get("header_code"),
@@ -110,9 +114,20 @@ class ExtractionPipeline:
                     header_type=header_info.get("header_type"),
                     header_description=header_info.get("header_description"),
                     header_fields_raw=header_info.get("header_raw_lines", []),
+                    header_raw_lines=header_info.get("header_raw_lines", []),
+                    header_bbox=header_info.get("header_bbox"),
+                    header_zone_confidence=header_info.get("header_zone_confidence"),
                     footer_fields_raw=page_ctx.layout_metadata.get("footer_lines", []),
-                    layout_model=page_ctx.layout_metadata,
-                    warnings=list(page_ctx.layout_metadata.get("layout_warnings", [])),
+                    layout_model={
+                        **page_ctx.layout_metadata,
+                        "header_extraction_metrics": {
+                            "header_fields_detected": header_info.get("header_fields_detected", 0),
+                            "header_label_matches": header_info.get("header_label_matches", 0),
+                            "header_boundary_conflicts": header_info.get("header_boundary_conflicts", 0),
+                            "header_confidence_score": header_info.get("header_confidence_score", 0.0),
+                        },
+                    },
+                    warnings=list(page_ctx.layout_metadata.get("layout_warnings", [])) + list(header_info.get("warnings", [])),
                 )
                 summary.page_layouts.append({
                     "page_number": page_ctx.page_number,
@@ -121,6 +136,9 @@ class ExtractionPipeline:
                     "header_revision": page_output.header_revision,
                     "header_type": page_output.header_type,
                     "header_description": page_output.header_description,
+                    "header_bbox": page_output.header_bbox,
+                    "header_zone_confidence": page_output.header_zone_confidence,
+                    "header_extraction_metrics": page_output.layout_model.get("header_extraction_metrics", {}),
                     "footer_fields_raw": page_output.footer_fields_raw,
                     "page_warnings": page_output.warnings,
                 })
@@ -251,6 +269,7 @@ class ExtractionPipeline:
             "layout_confidence": layout.confidence,
             "page_width": page_ctx.page_width,
             "page_height": page_ctx.page_height,
+            "page_words": compact_words,
         }
 
     def _to_row_output(self, row: RawRowRecord) -> RowOutput:
