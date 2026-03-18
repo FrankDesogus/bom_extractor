@@ -46,7 +46,11 @@ def test_pipeline_smoke_repo_sample(tmp_path):
         "rows_with_clean_anchor_alignment",
         "expandable_field_attachment_count",
         "clean_anchor_row_count",
+        "continuation_row_count",
         "ambiguous_row_count",
+        "continuation_fragment_count",
+        "table_header_row_count",
+        "non_bom_structural_row_count",
         "high_confidence_row_count",
         "medium_confidence_row_count",
         "low_confidence_row_count",
@@ -56,3 +60,5 @@ def test_pipeline_smoke_repo_sample(tmp_path):
         assert key in metrics
 
     assert metrics["lane_count"] >= 1
+    assert summary.page_state_distribution
+    assert header_page.page_state is not None

@@ -278,9 +278,34 @@ def test_attached_continuation_row_is_medium_and_ambiguous_row_is_low_confidence
         ),
     ]
     out, metrics = apply_page_lane_inference(rows)
-    assert out[0].metadata["row_structure_classification"] == "row_with_attached_continuation"
+    assert out[0].metadata["row_structure_classification"] == "anchor_row_with_expandable_continuation"
     assert out[0].metadata["operational_confidence_band"] == "medium"
     assert out[1].metadata["row_structure_classification"] == "ambiguous_row"
     assert out[1].metadata["operational_confidence_band"] == "low"
+    assert metrics["continuation_row_count"] >= 1
     assert metrics["medium_confidence_row_count"] >= 1
     assert metrics["low_confidence_row_count"] >= 1
+
+
+def test_orphan_fragment_row_gets_continuation_fragment_state():
+    rows = [
+        _row(1, "0010 TYPE E0181296 01 NR 2", ["0010"], bbox=(10, 100, 220, 108), item="0010", code="E0181296", revision="01"),
+        _row(2, "supplier ACME SRL", ["supplier", "ACME", "SRL"], ["continuation_candidate"], bbox=(180, 112, 260, 120)),
+    ]
+    out, metrics = apply_page_lane_inference(rows)
+    assert out[1].metadata["row_structure_classification"] == "continuation_fragment_row"
+    assert out[1].metadata["operational_confidence_band"] == "low"
+    assert "orphan_continuation_fragment" in out[1].warnings
+    assert metrics["continuation_fragment_count"] >= 1
+
+
+def test_header_and_footer_rows_are_structural_non_bom_states():
+    rows = [
+        _row(1, "ITEM CODE QTY DESCRIPTION", ["ITEM", "CODE", "QTY", "DESCRIPTION"], ["header_row", "probable_header_leakage"], bbox=(10, 80, 220, 88), metadata={"atomic_line": {"is_header_like": True, "starts_with_item_anchor": False}}),
+        _row(2, "Rev. date 2024", ["Rev.", "date", "2024"], ["footer_row"], bbox=(10, 220, 120, 228), metadata={"atomic_line": {"is_footer_like": True}}),
+    ]
+    out, metrics = apply_page_lane_inference(rows)
+    assert out[0].metadata["row_structure_classification"] == "table_header_row"
+    assert out[1].metadata["row_structure_classification"] == "non_bom_structural_row"
+    assert metrics["table_header_row_count"] == 1
+    assert metrics["non_bom_structural_row_count"] == 1

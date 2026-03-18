@@ -81,11 +81,14 @@ class RowOutput(BaseModel):
     extracted_columns: list[str] = Field(default_factory=list)
     parser_sources: list[str] = Field(default_factory=list)
     confidence: float = 0.0
+    confidence_band: str | None = None
+    structural_state: str | None = None
     warnings: list[str] = Field(default_factory=list)
 
 
 class PageOutput(BaseModel):
     page_number: int
+    page_state: str | None = None
     header_code: str | None = None
     header_revision: str | None = None
     header_type: str | None = None
@@ -113,4 +116,6 @@ class DocumentSummary(BaseModel):
     fusion_decisions: list[PageFusionDecision] = Field(default_factory=list)
     page_layouts: list[dict[str, Any]] = Field(default_factory=list)
     pages: list[PageOutput] = Field(default_factory=list)
+    page_state_distribution: dict[str, int] = Field(default_factory=dict)
+    structural_row_metrics: dict[str, Any] = Field(default_factory=dict)
     document_metadata: dict[str, Any] = Field(default_factory=dict)

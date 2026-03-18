@@ -1,5 +1,5 @@
 from bom_extractor.config import ExtractionConfig
-from bom_extractor.models import RawRowRecord
+from bom_extractor.models import PageOutput, RawRowRecord
 from bom_extractor.pipeline import ExtractionPipeline
 
 
@@ -14,3 +14,91 @@ def test_decontaminate_marks_contamination_and_suppresses_header_rows(tmp_path):
     assert len(out) == 2
     assert out[0].row_index_on_page == 2
     assert "probable_footer_contamination" in out[1].warnings
+
+
+def test_decontaminate_suppresses_structural_non_bom_rows(tmp_path):
+    pipe = ExtractionPipeline(ExtractionConfig(output_dir=tmp_path, write_csv=False, write_parquet=False))
+    rows = [
+        RawRowRecord(
+            source_file="a",
+            source_file_hash="h",
+            document_id="d",
+            page_number=1,
+            row_index_on_page=1,
+            raw_text="ITEM CODE QTY",
+            extracted_columns=["ITEM", "CODE", "QTY"],
+            parser_name="x",
+            warnings=["table_header_row"],
+            metadata={"row_structure_classification": "table_header_row", "atomic_line": {"starts_with_item_anchor": False}},
+        ),
+        RawRowRecord(
+            source_file="a",
+            source_file_hash="h",
+            document_id="d",
+            page_number=1,
+            row_index_on_page=2,
+            raw_text="0010 MAT 123456",
+            extracted_columns=["0010", "MAT", "123456"],
+            parser_name="x",
+            metadata={"row_structure_classification": "clean_anchor_row", "atomic_line": {"starts_with_item_anchor": True}},
+        ),
+        RawRowRecord(
+            source_file="a",
+            source_file_hash="h",
+            document_id="d",
+            page_number=1,
+            row_index_on_page=3,
+            raw_text="Legal footer",
+            extracted_columns=["Legal", "footer"],
+            parser_name="x",
+            metadata={"row_structure_classification": "non_bom_structural_row"},
+        ),
+    ]
+    out = pipe._decontaminate_page_rows(rows)
+    assert len(out) == 1
+    assert out[0].row_index_on_page == 2
+
+
+def test_continuation_page_header_policy_nulls_structured_header_fields(tmp_path):
+    pipe = ExtractionPipeline(ExtractionConfig(output_dir=tmp_path, write_csv=False, write_parquet=False))
+    page = PageOutput(
+        page_number=2,
+        page_state="continuation_page_without_header",
+        header_code="E0181296",
+        header_revision="01",
+        header_type="ASSY",
+        header_description="SHOULD BE CLEARED",
+        header_fields_raw=["0010 leaked row"],
+        header_raw_lines=["0010 leaked row"],
+    )
+    pipe._apply_page_header_policy(page)
+    assert page.header_code is None
+    assert page.header_revision is None
+    assert page.header_type is None
+    assert page.header_description is None
+    assert page.header_fields_raw == []
+    assert page.header_raw_lines == []
+
+
+def test_page_state_classifier_detects_continuation_page_without_header(tmp_path):
+    pipe = ExtractionPipeline(ExtractionConfig(output_dir=tmp_path, write_csv=False, write_parquet=False))
+    rows = [
+        RawRowRecord(
+            source_file="a",
+            source_file_hash="h",
+            document_id="d",
+            page_number=2,
+            row_index_on_page=1,
+            raw_text="0010 MAT E0181296 01 NR 2",
+            extracted_columns=["0010", "MAT", "E0181296", "01", "NR", "2"],
+            parser_name="x",
+            metadata={"row_structure_classification": "clean_anchor_row"},
+        )
+    ]
+    page = PageOutput(
+        page_number=2,
+        layout_model={"header_extraction_metrics": {"header_fields_detected": 0, "header_boundary_conflicts": 0}},
+        footer_fields_raw=[],
+    )
+    state = pipe._classify_page_state(page, rows, "page_with_primary_header")
+    assert state == "continuation_page_without_header"
