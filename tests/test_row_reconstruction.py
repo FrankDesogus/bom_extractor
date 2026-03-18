@@ -218,3 +218,69 @@ def test_complete_anchor_row_not_marked_as_continuation_candidate():
     out = stitch_multiline_rows(rows)
     assert len(out) == 2
     assert "continuation_candidate" not in out[1].warnings
+
+
+def test_clean_anchor_row_denoises_soft_warnings_and_gets_high_confidence():
+    rows = [
+        _row(
+            1,
+            "0010 TYPE E0181296 01 NR 2",
+            ["0010", "TYPE", "E0181296", "01", "NR", "2"],
+            ["continuation_candidate", "field_assignment_uncertain", "lane_ambiguity"],
+            bbox=(10, 100, 250, 108),
+            item="0010",
+            code="E0181296",
+            revision="01",
+            uom="NR",
+            quantity_raw="2",
+        ),
+        _row(
+            2,
+            "0020 TYPE E0181297 01 NR 3",
+            ["0020", "TYPE", "E0181297", "01", "NR", "3"],
+            bbox=(10, 112, 250, 120),
+            item="0020",
+            code="E0181297",
+            revision="01",
+            uom="NR",
+            quantity_raw="3",
+        ),
+    ]
+    out, metrics = apply_page_lane_inference(rows)
+    assert "continuation_candidate" not in out[0].warnings
+    assert "field_assignment_uncertain" not in out[0].warnings
+    assert "lane_ambiguity" not in out[0].warnings
+    assert out[0].metadata["row_structure_classification"] == "clean_anchor_row"
+    assert out[0].metadata["operational_confidence_band"] == "high"
+    assert metrics["clean_anchor_row_count"] >= 2
+    assert metrics["high_confidence_row_count"] >= 1
+    assert metrics["noisy_warning_suppression_count"] >= 1
+
+
+def test_attached_continuation_row_is_medium_and_ambiguous_row_is_low_confidence():
+    rows = [
+        _row(
+            1,
+            "0010 TYPE E0181296 01 NR 2 details",
+            ["0010", "TYPE", "E0181296", "01", "NR", "2", "details"],
+            bbox=(10, 100, 250, 108),
+            item="0010",
+            code="E0181296",
+            revision="01",
+            metadata={"stitched_fragments": [{"raw_text": "details"}]},
+        ),
+        _row(
+            2,
+            "bad row",
+            ["bad", "row"],
+            ["lane_ambiguity", "anchor_lane_conflict"],
+            bbox=(10, 112, 140, 120),
+        ),
+    ]
+    out, metrics = apply_page_lane_inference(rows)
+    assert out[0].metadata["row_structure_classification"] == "row_with_attached_continuation"
+    assert out[0].metadata["operational_confidence_band"] == "medium"
+    assert out[1].metadata["row_structure_classification"] == "ambiguous_row"
+    assert out[1].metadata["operational_confidence_band"] == "low"
+    assert metrics["medium_confidence_row_count"] >= 1
+    assert metrics["low_confidence_row_count"] >= 1

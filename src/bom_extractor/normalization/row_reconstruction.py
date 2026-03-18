@@ -11,6 +11,24 @@ MAX_STITCHED_FRAGMENTS = 3
 MAX_PARENT_LOOKBACK = 6
 LANE_TOLERANCE = 26.0
 ASSIGNMENT_TOLERANCE = 34.0
+LANE_AMBIGUITY_MARGIN = 16.0
+
+SOFT_WARNINGS = {
+    "continuation_candidate",
+    "lane_ambiguity",
+    "field_assignment_uncertain",
+}
+
+STRONG_WARNING_SIGNALS = {
+    "anchor_lane_conflict",
+    "orphan_continuation_fragment",
+    "parent_row_uncertain",
+    "continuation_attachment_uncertain",
+    "header_row",
+    "probable_header_leakage",
+    "ambiguous_row_boundary",
+    "parser_disagreement",
+}
 
 UOM_TOKENS = {"NR", "PZ", "KG", "M", "MM", "CM", "SET", "MT", "EA"}
 
@@ -243,8 +261,134 @@ def _assign_fields_by_lanes(row: RawRowRecord, lane_model: PageLaneModel) -> Non
         row.warnings.append("field_assignment_uncertain")
 
 
+def _plausible_revision(value: str | None) -> bool:
+    token = normalize_space(value or "")
+    return bool(token and len(token) <= 4 and token.isalnum() and any(ch.isdigit() for ch in token))
+
+
+def _has_right_side_continuation_hint(row: RawRowRecord) -> bool:
+    lane_model = row.metadata.get("page_lane_model") if isinstance(row.metadata, dict) else None
+    if not isinstance(lane_model, dict) or not row.bbox_row:
+        return False
+    lanes = lane_model.get("lanes") if isinstance(lane_model.get("lanes"), dict) else {}
+    notes_lane = lanes.get("notes")
+    desc_lane = lanes.get("description")
+    if not isinstance(notes_lane, dict) and not isinstance(desc_lane, dict):
+        return False
+    row_center = (row.bbox_row[0] + row.bbox_row[2]) / 2.0
+    candidates: list[float] = []
+    for lane in (notes_lane, desc_lane):
+        if isinstance(lane, dict) and isinstance(lane.get("x_center"), (float, int)):
+            candidates.append(float(lane["x_center"]))
+    if not candidates:
+        return False
+    right_lane = max(candidates)
+    fragments = row.metadata.get("stitched_fragments", []) if isinstance(row.metadata, dict) else []
+    return row_center > right_lane + 40 and bool(fragments)
+
+
+def _row_structure_classification(row: RawRowRecord) -> str:
+    anchor_ok = bool(row.item and row.code and _plausible_revision(row.revision))
+    has_continuation = bool(row.metadata.get("stitched_fragments")) if isinstance(row.metadata, dict) else False
+    conflicting_anchor_lane = "anchor_lane_conflict" in row.warnings
+    right_fragment = _has_right_side_continuation_hint(row)
+    if anchor_ok and not has_continuation and not right_fragment and not conflicting_anchor_lane:
+        return "clean_anchor_row"
+    if has_continuation and not conflicting_anchor_lane:
+        return "row_with_attached_continuation"
+    if conflicting_anchor_lane or "lane_ambiguity" in row.warnings:
+        return "ambiguous_row"
+    return "row_with_attached_continuation" if has_continuation else "ambiguous_row"
+
+
+def _lane_ambiguity_is_strong(row: RawRowRecord, lane_model: PageLaneModel) -> bool:
+    if len(lane_model.lane_ambiguity_roles) < 2:
+        return False
+    tokens = _token_centers(row)
+    if not tokens:
+        return False
+    close_matches = 0
+    for _, x in tokens:
+        dists = sorted(abs(x - lane.x_center) for lane in lane_model.lanes.values())
+        if len(dists) >= 2 and abs(dists[0] - dists[1]) <= LANE_AMBIGUITY_MARGIN:
+            close_matches += 1
+    return close_matches >= 2
+
+
+def _apply_operational_confidence(row: RawRowRecord, lane_model: PageLaneModel) -> tuple[str, float]:
+    base = float(row.parser_confidence)
+    completeness = sum(1 for v in _row_anchor_status(row).values() if v)
+    base += min(0.18, completeness * 0.035)
+    base += (lane_model.lane_confidence_score - 0.5) * 0.08
+
+    classification = _row_structure_classification(row)
+    if classification == "clean_anchor_row":
+        base += 0.16
+    elif classification == "row_with_attached_continuation":
+        base -= 0.08
+    else:
+        base -= 0.2
+
+    if "field_assignment_uncertain" in row.warnings:
+        base -= 0.1
+    if "anchor_lane_conflict" in row.warnings:
+        base -= 0.18
+    if any(w in row.warnings for w in ("parent_row_uncertain", "orphan_continuation_fragment", "probable_header_leakage")):
+        base -= 0.18
+    if "parser_disagreement" in row.warnings:
+        base -= 0.08
+
+    score = max(0.0, min(1.0, round(base, 3)))
+    if classification == "clean_anchor_row" and score >= 0.74:
+        return "high", score
+    if score < 0.45 or classification == "ambiguous_row":
+        return "low", score
+    return "medium", score
+
+
+def _is_meaningful_field_uncertainty(row: RawRowRecord) -> bool:
+    if "field_assignment_uncertain" not in row.warnings:
+        return False
+    status = _row_anchor_status(row)
+    if status["item"] and status["code"] and status["revision"] and (status["uom"] or status["quantity_raw"]):
+        return False
+    return True
+
+
+def _denoise_row_warnings(row: RawRowRecord, lane_model: PageLaneModel) -> int:
+    suppressed = 0
+    classification = _row_structure_classification(row)
+    has_attached = bool(row.metadata.get("stitched_fragments")) if isinstance(row.metadata, dict) else False
+
+    if classification == "clean_anchor_row":
+        for warning in ("continuation_candidate", "field_assignment_uncertain", "lane_ambiguity"):
+            if warning in row.warnings:
+                row.warnings.remove(warning)
+                suppressed += 1
+
+    if "continuation_candidate" in row.warnings and not has_attached and classification == "clean_anchor_row":
+        row.warnings.remove("continuation_candidate")
+        suppressed += 1
+
+    if "lane_ambiguity" in row.warnings and not _lane_ambiguity_is_strong(row, lane_model):
+        row.warnings.remove("lane_ambiguity")
+        suppressed += 1
+
+    if "field_assignment_uncertain" in row.warnings and not _is_meaningful_field_uncertainty(row):
+        row.warnings.remove("field_assignment_uncertain")
+        suppressed += 1
+
+    row.metadata["warning_severity"] = {
+        warning: ("strong" if warning in STRONG_WARNING_SIGNALS else "soft")
+        for warning in sorted(set(row.warnings))
+    }
+    row.metadata["row_structure_classification"] = classification
+    return suppressed
+
+
 def apply_page_lane_inference(rows: list[RawRowRecord]) -> tuple[list[RawRowRecord], dict[str, float | int]]:
     lane_model = infer_page_lane_model(rows)
+    suppressed_warnings = 0
     for row in rows:
         row.metadata["page_lane_model"] = {
             "lane_confidence_score": lane_model.lane_confidence_score,
@@ -263,7 +407,7 @@ def apply_page_lane_inference(rows: list[RawRowRecord]) -> tuple[list[RawRowReco
         }
         _assign_fields_by_lanes(row, lane_model)
 
-        if lane_model.lane_ambiguity_roles and "lane_ambiguity" not in row.warnings:
+        if len(lane_model.lane_ambiguity_roles) >= 2 and "lane_ambiguity" not in row.warnings:
             row.warnings.append("lane_ambiguity")
 
         if row.item and row.code:
@@ -273,16 +417,12 @@ def apply_page_lane_inference(rows: list[RawRowRecord]) -> tuple[list[RawRowReco
                 if "anchor_lane_conflict" not in row.warnings:
                     row.warnings.append("anchor_lane_conflict")
 
-        conf = float(row.parser_confidence)
-        conf += (lane_model.lane_confidence_score - 0.5) * 0.12
-        if "field_assignment_uncertain" in row.warnings:
-            conf -= 0.12
-        if "lane_ambiguity" in row.warnings:
-            conf -= 0.08
-        if "anchor_lane_conflict" in row.warnings:
-            conf -= 0.1
-        row.parser_confidence = max(0.0, min(1.0, round(conf, 3)))
+        suppressed_warnings += _denoise_row_warnings(row, lane_model)
+        confidence_band, conf_score = _apply_operational_confidence(row, lane_model)
+        row.parser_confidence = conf_score
+        row.metadata["operational_confidence_band"] = confidence_band
 
+    total_warnings = sum(len(set(r.warnings)) for r in rows)
     metrics: dict[str, float | int] = {
         "lane_count": len(lane_model.lanes),
         "lane_confidence_score": lane_model.lane_confidence_score,
@@ -293,6 +433,13 @@ def apply_page_lane_inference(rows: list[RawRowRecord]) -> tuple[list[RawRowReco
             for r in rows
             if r.item and r.code and "anchor_lane_conflict" not in r.warnings and "field_assignment_uncertain" not in r.warnings
         ),
+        "clean_anchor_row_count": sum(1 for r in rows if r.metadata.get("row_structure_classification") == "clean_anchor_row"),
+        "ambiguous_row_count": sum(1 for r in rows if r.metadata.get("row_structure_classification") == "ambiguous_row"),
+        "high_confidence_row_count": sum(1 for r in rows if r.metadata.get("operational_confidence_band") == "high"),
+        "medium_confidence_row_count": sum(1 for r in rows if r.metadata.get("operational_confidence_band") == "medium"),
+        "low_confidence_row_count": sum(1 for r in rows if r.metadata.get("operational_confidence_band") == "low"),
+        "warning_density": round(total_warnings / max(1, len(rows)), 3),
+        "noisy_warning_suppression_count": suppressed_warnings,
     }
     return rows, metrics
 
