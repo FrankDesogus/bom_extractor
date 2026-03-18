@@ -45,6 +45,13 @@ def test_pipeline_smoke_repo_sample(tmp_path):
         "anchor_lane_conflict_count",
         "rows_with_clean_anchor_alignment",
         "expandable_field_attachment_count",
+        "clean_anchor_row_count",
+        "ambiguous_row_count",
+        "high_confidence_row_count",
+        "medium_confidence_row_count",
+        "low_confidence_row_count",
+        "warning_density",
+        "noisy_warning_suppression_count",
     ):
         assert key in metrics
 
