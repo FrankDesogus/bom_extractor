@@ -64,6 +64,8 @@ class ExtractionPipeline:
             fusion_decisions=[d for s in summaries for d in s.fusion_decisions],
             page_layouts=[p for s in summaries for p in s.page_layouts],
             pages=[p for s in summaries for p in s.pages],
+            page_state_distribution=self._merge_counter_maps(summaries, "page_state_distribution"),
+            structural_row_metrics=self._merge_metric_maps(summaries),
             document_metadata={"documents": [s.document_metadata for s in summaries]},
         )
         self.storage.write_jsonl(all_rows)
@@ -89,6 +91,7 @@ class ExtractionPipeline:
         try:
             total_pages = len(doc)
             limit = min(total_pages, self.config.max_pages) if self.config.max_pages else total_pages
+            previous_page_state: str | None = None
             for page_idx in range(limit):
                 page = doc[page_idx]
                 page_ctx = PageContext(
@@ -109,6 +112,7 @@ class ExtractionPipeline:
                 )
                 page_output = PageOutput(
                     page_number=page_ctx.page_number,
+                    page_state=None,
                     header_code=header_info.get("header_code"),
                     header_revision=header_info.get("header_revision"),
                     header_type=header_info.get("header_type"),
@@ -131,6 +135,7 @@ class ExtractionPipeline:
                 )
                 summary.page_layouts.append({
                     "page_number": page_ctx.page_number,
+                    "page_state": page_output.page_state,
                     "header_fields_raw": page_output.header_fields_raw,
                     "header_code": page_output.header_code,
                     "header_revision": page_output.header_revision,
@@ -143,11 +148,20 @@ class ExtractionPipeline:
                     "page_warnings": page_output.warnings,
                 })
                 page_rows = self._parse_page(pdf_path, page_ctx, summary, page_output)
+                page_state = self._classify_page_state(page_output, page_rows, previous_page_state)
+                page_output.page_state = page_state
+                previous_page_state = page_state
+                summary.page_state_distribution[page_state] = summary.page_state_distribution.get(page_state, 0) + 1
+                self._apply_page_header_policy(page_output)
+                if summary.page_layouts:
+                    summary.page_layouts[-1]["page_state"] = page_state
+                    summary.page_layouts[-1]["header_fields_raw"] = page_output.header_fields_raw
                 rows.extend(page_rows)
                 page_output.reconstructed_table = [self._to_row_output(r) for r in page_rows]
                 summary.pages.append(page_output)
                 summary.pages_seen += 1
             summary.rows_emitted = len(rows)
+            summary.structural_row_metrics = self._summarize_document_row_metrics(summary.pages)
             page_warnings = [w for p in summary.pages for w in p.warnings]
             for doc_warning in ("excessive_stitching_detected", "large_row_count_drop", "layout_low_confidence", "parser_conflict_detected"):
                 if doc_warning in page_warnings and doc_warning not in summary.warnings:
@@ -239,6 +253,7 @@ class ExtractionPipeline:
         for row in rows:
             atomic = row.metadata.get("atomic_line") if isinstance(row.metadata, dict) else None
             starts_anchor = isinstance(atomic, dict) and atomic.get("starts_with_item_anchor") is True
+            structural_state = row.metadata.get("row_structure_classification") if isinstance(row.metadata, dict) else None
             if "header_row" in row.warnings:
                 for flag in ("probable_header_contamination", "header_contamination_detected", "probable_header_leakage"):
                     if flag not in row.warnings:
@@ -249,8 +264,10 @@ class ExtractionPipeline:
                         row.warnings.append(flag)
 
             suppress_from_table = (
-                ("probable_header_leakage" in row.warnings or "header_row" in row.warnings)
+                structural_state in {"table_header_row", "non_bom_structural_row"}
+                or (("probable_header_leakage" in row.warnings or "header_row" in row.warnings)
                 and not starts_anchor
+                )
             )
             if suppress_from_table:
                 continue
@@ -285,6 +302,8 @@ class ExtractionPipeline:
             extracted_columns=row.extracted_columns,
             parser_sources=row.metadata.get("parser_sources", [row.parser_name]),
             confidence=row.parser_confidence,
+            confidence_band=row.metadata.get("operational_confidence_band"),
+            structural_state=row.metadata.get("row_structure_classification"),
             warnings=row.warnings,
         )
 
@@ -295,3 +314,79 @@ class ExtractionPipeline:
             for key, value in summary.parser_usage.items():
                 merged[key] = merged.get(key, 0) + value
         return merged
+
+    @staticmethod
+    def _merge_counter_maps(summaries: list[DocumentSummary], field_name: str) -> dict[str, int]:
+        merged: dict[str, int] = {}
+        for summary in summaries:
+            counter = getattr(summary, field_name, {}) or {}
+            for key, value in counter.items():
+                merged[key] = merged.get(key, 0) + int(value)
+        return merged
+
+    @staticmethod
+    def _merge_metric_maps(summaries: list[DocumentSummary]) -> dict[str, float | int]:
+        merged: dict[str, float | int] = {}
+        for summary in summaries:
+            for key, value in (summary.structural_row_metrics or {}).items():
+                merged[key] = merged.get(key, 0) + value
+        return merged
+
+    @staticmethod
+    def _classify_page_state(page_output: PageOutput, rows: list[RawRowRecord], previous_page_state: str | None) -> str:
+        header_metrics = page_output.layout_model.get("header_extraction_metrics", {})
+        fields_detected = int(header_metrics.get("header_fields_detected", 0) or 0)
+        boundary_conflicts = int(header_metrics.get("header_boundary_conflicts", 0) or 0)
+        leaked_bom_like_header_raw = any(normalize_space(line).split(" ", 1)[0].isdigit() for line in page_output.header_raw_lines if normalize_space(line))
+        row_states = [r.metadata.get("row_structure_classification") for r in rows if isinstance(r.metadata, dict)]
+        has_bom_rows = any(
+            state in {"clean_anchor_row", "anchor_row_with_expandable_continuation", "continuation_fragment_row", "ambiguous_row"}
+            for state in row_states
+        )
+        has_footer_only_rows = bool(rows) and all(state == "non_bom_structural_row" for state in row_states if state)
+
+        if fields_detected == 0 and has_bom_rows and leaked_bom_like_header_raw:
+            if "header_raw_table_leakage" not in page_output.warnings:
+                page_output.warnings.append("header_raw_table_leakage")
+            return "continuation_page_without_header"
+        if boundary_conflicts > 0:
+            return "page_with_header_boundary_uncertainty"
+        if fields_detected > 0:
+            return "page_with_primary_header"
+        if has_footer_only_rows or (page_output.footer_fields_raw and not has_bom_rows):
+            return "page_with_footer_only"
+        if has_bom_rows and previous_page_state in {"page_with_primary_header", "continuation_page_without_header"}:
+            return "continuation_page_without_header"
+        if has_bom_rows:
+            return "continuation_page_without_header"
+        return "page_with_footer_only"
+
+    @staticmethod
+    def _apply_page_header_policy(page_output: PageOutput) -> None:
+        if page_output.page_state != "continuation_page_without_header":
+            return
+        page_output.header_code = None
+        page_output.header_revision = None
+        page_output.header_type = None
+        page_output.header_description = None
+        page_output.header_fields_raw = []
+        page_output.header_raw_lines = []
+
+    @staticmethod
+    def _summarize_document_row_metrics(pages: list[PageOutput]) -> dict[str, float | int]:
+        metrics: dict[str, float | int] = {
+            "clean_anchor_row_count": 0,
+            "continuation_row_count": 0,
+            "ambiguous_row_count": 0,
+            "continuation_fragment_count": 0,
+            "table_header_row_count": 0,
+            "non_bom_structural_row_count": 0,
+            "high_confidence_row_count": 0,
+            "medium_confidence_row_count": 0,
+            "low_confidence_row_count": 0,
+        }
+        for page in pages:
+            row_metrics = page.layout_model.get("row_boundary_metrics", {})
+            for key in metrics:
+                metrics[key] += int(row_metrics.get(key, 0) or 0)
+        return metrics

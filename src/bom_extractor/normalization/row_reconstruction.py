@@ -19,6 +19,15 @@ SOFT_WARNINGS = {
     "field_assignment_uncertain",
 }
 
+STRUCTURAL_ROW_STATES = {
+    "clean_anchor_row",
+    "anchor_row_with_expandable_continuation",
+    "continuation_fragment_row",
+    "ambiguous_row",
+    "table_header_row",
+    "non_bom_structural_row",
+}
+
 STRONG_WARNING_SIGNALS = {
     "anchor_lane_conflict",
     "orphan_continuation_fragment",
@@ -260,6 +269,17 @@ def _assign_fields_by_lanes(row: RawRowRecord, lane_model: PageLaneModel) -> Non
     if row.uom and row.quantity_raw and row.uom == row.quantity_raw and "field_assignment_uncertain" not in row.warnings:
         row.warnings.append("field_assignment_uncertain")
 
+    _promote_revision_from_quantity_slot(row)
+
+
+def _promote_revision_from_quantity_slot(row: RawRowRecord) -> None:
+    if row.revision or not _plausible_revision(row.quantity_raw):
+        return
+    if row.uom and row.quantity_raw and row.uom != row.quantity_raw:
+        return
+    row.revision = normalize_space(row.quantity_raw)
+    row.quantity_raw = None
+
 
 def _plausible_revision(value: str | None) -> bool:
     token = normalize_space(value or "")
@@ -287,18 +307,94 @@ def _has_right_side_continuation_hint(row: RawRowRecord) -> bool:
     return row_center > right_lane + 40 and bool(fragments)
 
 
+def _expandable_lane_alignment(row: RawRowRecord) -> float:
+    lane_model = row.metadata.get("page_lane_model") if isinstance(row.metadata, dict) else None
+    if not isinstance(lane_model, dict) or not row.bbox_row:
+        return 0.0
+    lanes = lane_model.get("lanes") if isinstance(lane_model.get("lanes"), dict) else {}
+    center_x = (row.bbox_row[0] + row.bbox_row[2]) / 2.0
+    distances: list[float] = []
+    for role in ROLE_MODEL.multi_line_expandable_fields:
+        lane = lanes.get(role)
+        lane_x = lane.get("x_center") if isinstance(lane, dict) else None
+        if isinstance(lane_x, (float, int)):
+            distances.append(abs(center_x - float(lane_x)))
+    if not distances:
+        return 0.0
+    best = min(distances)
+    return round(max(0.0, 1.0 - (best / (ASSIGNMENT_TOLERANCE + 22))), 3)
+
+
+def _has_unresolved_continuation_fragments(row: RawRowRecord) -> bool:
+    fragments = row.metadata.get("stitched_fragments", []) if isinstance(row.metadata, dict) else []
+    if isinstance(fragments, list) and fragments:
+        return False
+    if row.item and row.code and _plausible_revision(row.revision):
+        strong_fragment_signals = {"orphan_continuation_fragment", "parent_row_uncertain", "continuation_attachment_uncertain"}
+        return any(warning in row.warnings for warning in strong_fragment_signals)
+    return any(
+        warning in row.warnings
+        for warning in (
+            "continuation_candidate",
+            "orphan_continuation_fragment",
+            "parent_row_uncertain",
+            "continuation_attachment_uncertain",
+        )
+    )
+
+
+def _has_strong_lane_conflict(row: RawRowRecord, lane_model: PageLaneModel) -> bool:
+    return "anchor_lane_conflict" in row.warnings or _lane_ambiguity_is_strong(row, lane_model)
+
+
+def _looks_like_table_header_row(row: RawRowRecord) -> bool:
+    atomic = row.metadata.get("atomic_line") if isinstance(row.metadata, dict) else None
+    return bool(
+        isinstance(atomic, dict)
+        and atomic.get("is_header_like") is True
+        and atomic.get("starts_with_item_anchor") is not True
+    )
+
+
+def _looks_like_non_bom_structural_row(row: RawRowRecord) -> bool:
+    atomic = row.metadata.get("atomic_line") if isinstance(row.metadata, dict) else None
+    return bool(
+        "footer_row" in row.warnings
+        or "probable_footer_contamination" in row.warnings
+        or (isinstance(atomic, dict) and atomic.get("is_footer_like") is True)
+    )
+
+
 def _row_structure_classification(row: RawRowRecord) -> str:
+    lane_model_dict = row.metadata.get("page_lane_model") if isinstance(row.metadata, dict) else {}
+    lane_model = PageLaneModel(
+        lanes={},
+        lane_confidence_score=float(lane_model_dict.get("lane_confidence_score", 0.0)) if isinstance(lane_model_dict, dict) else 0.0,
+        lane_overlaps=list(lane_model_dict.get("lane_overlaps", [])) if isinstance(lane_model_dict, dict) else [],
+        lane_ambiguity_roles=list(lane_model_dict.get("lane_ambiguity_roles", [])) if isinstance(lane_model_dict, dict) else [],
+    )
     anchor_ok = bool(row.item and row.code and _plausible_revision(row.revision))
     has_continuation = bool(row.metadata.get("stitched_fragments")) if isinstance(row.metadata, dict) else False
-    conflicting_anchor_lane = "anchor_lane_conflict" in row.warnings
+    unresolved_fragments = _has_unresolved_continuation_fragments(row)
+    conflicting_anchor_lane = _has_strong_lane_conflict(row, lane_model)
     right_fragment = _has_right_side_continuation_hint(row)
-    if anchor_ok and not has_continuation and not right_fragment and not conflicting_anchor_lane:
+    anchor_duplication = "anchor_field_duplication_suspected" in row.warnings
+    parser_conflict = any(w in row.warnings for w in ("boundary_disagreement", "parser_disagreement"))
+    continuation_lane_aligned = _expandable_lane_alignment(row) >= 0.45
+
+    if _looks_like_table_header_row(row):
+        return "table_header_row"
+    if _looks_like_non_bom_structural_row(row):
+        return "non_bom_structural_row"
+    if anchor_ok and not has_continuation and not unresolved_fragments and not right_fragment and not conflicting_anchor_lane:
         return "clean_anchor_row"
-    if has_continuation and not conflicting_anchor_lane:
-        return "row_with_attached_continuation"
-    if conflicting_anchor_lane or "lane_ambiguity" in row.warnings:
+    if anchor_ok and has_continuation and not conflicting_anchor_lane and not anchor_duplication:
+        return "anchor_row_with_expandable_continuation"
+    if conflicting_anchor_lane or "lane_ambiguity" in row.warnings or anchor_duplication or parser_conflict:
         return "ambiguous_row"
-    return "row_with_attached_continuation" if has_continuation else "ambiguous_row"
+    if (not anchor_ok) and not _starts_with_item_anchor(row) and continuation_lane_aligned and not parser_conflict:
+        return "continuation_fragment_row"
+    return "ambiguous_row"
 
 
 def _lane_ambiguity_is_strong(row: RawRowRecord, lane_model: PageLaneModel) -> bool:
@@ -324,8 +420,10 @@ def _apply_operational_confidence(row: RawRowRecord, lane_model: PageLaneModel) 
     classification = _row_structure_classification(row)
     if classification == "clean_anchor_row":
         base += 0.16
-    elif classification == "row_with_attached_continuation":
+    elif classification == "anchor_row_with_expandable_continuation":
         base -= 0.08
+    elif classification in {"table_header_row", "non_bom_structural_row", "continuation_fragment_row"}:
+        base -= 0.16
     else:
         base -= 0.2
 
@@ -341,7 +439,9 @@ def _apply_operational_confidence(row: RawRowRecord, lane_model: PageLaneModel) 
     score = max(0.0, min(1.0, round(base, 3)))
     if classification == "clean_anchor_row" and score >= 0.74:
         return "high", score
-    if score < 0.45 or classification == "ambiguous_row":
+    if classification == "anchor_row_with_expandable_continuation":
+        return "medium", score
+    if score < 0.45 or classification in {"ambiguous_row", "continuation_fragment_row", "table_header_row", "non_bom_structural_row"}:
         return "low", score
     return "medium", score
 
@@ -369,6 +469,42 @@ def _denoise_row_warnings(row: RawRowRecord, lane_model: PageLaneModel) -> int:
     if "continuation_candidate" in row.warnings and not has_attached and classification == "clean_anchor_row":
         row.warnings.remove("continuation_candidate")
         suppressed += 1
+
+    if classification == "table_header_row":
+        for warning in ("table_header_row", "probable_header_leakage"):
+            if warning not in row.warnings:
+                row.warnings.append(warning)
+        for warning in ("continuation_candidate", "field_assignment_uncertain", "lane_ambiguity"):
+            if warning in row.warnings:
+                row.warnings.remove(warning)
+                suppressed += 1
+    elif classification == "non_bom_structural_row":
+        for warning in ("non_bom_structural_row", "probable_footer_contamination"):
+            if warning not in row.warnings:
+                row.warnings.append(warning)
+        for warning in ("continuation_candidate", "field_assignment_uncertain", "lane_ambiguity"):
+            if warning in row.warnings:
+                row.warnings.remove(warning)
+                suppressed += 1
+    elif classification == "continuation_fragment_row":
+        for warning in ("continuation_fragment_row",):
+            if warning not in row.warnings:
+                row.warnings.append(warning)
+        if not has_attached and "orphan_continuation_fragment" not in row.warnings:
+            row.warnings.append("orphan_continuation_fragment")
+        for warning in ("continuation_candidate", "field_assignment_uncertain"):
+            if warning in row.warnings:
+                row.warnings.remove(warning)
+                suppressed += 1
+    elif classification == "ambiguous_row":
+        if "structural_state_ambiguous" not in row.warnings:
+            row.warnings.append("structural_state_ambiguous")
+        if "continuation_candidate" in row.warnings:
+            row.warnings.remove("continuation_candidate")
+            suppressed += 1
+    elif classification == "anchor_row_with_expandable_continuation":
+        if has_attached and "continuation_to_expandable_field" not in row.warnings:
+            row.warnings.append("continuation_to_expandable_field")
 
     if "lane_ambiguity" in row.warnings and not _lane_ambiguity_is_strong(row, lane_model):
         row.warnings.remove("lane_ambiguity")
@@ -434,7 +570,17 @@ def apply_page_lane_inference(rows: list[RawRowRecord]) -> tuple[list[RawRowReco
             if r.item and r.code and "anchor_lane_conflict" not in r.warnings and "field_assignment_uncertain" not in r.warnings
         ),
         "clean_anchor_row_count": sum(1 for r in rows if r.metadata.get("row_structure_classification") == "clean_anchor_row"),
+        "continuation_row_count": sum(
+            1 for r in rows if r.metadata.get("row_structure_classification") == "anchor_row_with_expandable_continuation"
+        ),
         "ambiguous_row_count": sum(1 for r in rows if r.metadata.get("row_structure_classification") == "ambiguous_row"),
+        "continuation_fragment_count": sum(
+            1 for r in rows if r.metadata.get("row_structure_classification") == "continuation_fragment_row"
+        ),
+        "table_header_row_count": sum(1 for r in rows if r.metadata.get("row_structure_classification") == "table_header_row"),
+        "non_bom_structural_row_count": sum(
+            1 for r in rows if r.metadata.get("row_structure_classification") == "non_bom_structural_row"
+        ),
         "high_confidence_row_count": sum(1 for r in rows if r.metadata.get("operational_confidence_band") == "high"),
         "medium_confidence_row_count": sum(1 for r in rows if r.metadata.get("operational_confidence_band") == "medium"),
         "low_confidence_row_count": sum(1 for r in rows if r.metadata.get("operational_confidence_band") == "low"),
