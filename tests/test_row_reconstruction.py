@@ -386,8 +386,71 @@ def test_uom_and_quantity_remain_separate_and_pair_metrics_are_emitted():
 
     out, metrics = apply_page_lane_inference(rows)
 
+    assert out[0].code == "E0223806 01"
+    assert out[0].revision == "04"
+    assert out[0].description == "QLU"
     assert out[0].uom == "NR"
     assert out[0].quantity_raw == "1"
     assert out[0].uom != out[0].quantity_raw
     assert metrics["uom_quantity_pair_detected_count"] == 1
+    assert metrics["code_two_token_count"] == 1
     assert "uom_quantity_pair_incomplete" not in out[0].warnings
+
+
+def test_description_lock_prevents_reopening_code_and_revision():
+    rows = [
+        _row(
+            1,
+            "0040 Chassis Elettrico E0223806 01 04 QLU Elettrical chassis 1 1 NR 1",
+            ["0040", "Chassis", "Elettrico", "E0223806", "01", "04", "QLU", "Elettrical", "chassis", "1", "1", "NR", "1"],
+            bbox=(30, 240, 520, 248),
+            metadata={
+                "word_boxes": [
+                    {"text": "0040", "x0": 30, "x1": 42},
+                    {"text": "Chassis", "x0": 49, "x1": 72},
+                    {"text": "Elettrico", "x0": 74, "x1": 100},
+                    {"text": "E0223806", "x0": 149, "x1": 175},
+                    {"text": "01", "x0": 176, "x1": 183},
+                    {"text": "04", "x0": 203, "x1": 210},
+                    {"text": "QLU", "x0": 214, "x1": 226},
+                    {"text": "Elettrical", "x0": 228, "x1": 249},
+                    {"text": "chassis", "x0": 251, "x1": 270},
+                    {"text": "1", "x0": 358, "x1": 361},
+                    {"text": "1", "x0": 369, "x1": 372},
+                    {"text": "NR", "x0": 489, "x1": 497},
+                    {"text": "1", "x0": 516, "x1": 520},
+                ]
+            },
+        ),
+        _row(
+            2,
+            "0050 Tool Set E0226713 01 01 Toolset NR 1",
+            ["0050", "Tool", "Set", "E0226713", "01", "01", "Toolset", "NR", "1"],
+            bbox=(30, 252, 520, 260),
+            metadata={
+                "word_boxes": [
+                    {"text": "0050", "x0": 30, "x1": 42},
+                    {"text": "Tool", "x0": 49, "x1": 62},
+                    {"text": "Set", "x0": 64, "x1": 74},
+                    {"text": "E0226713", "x0": 149, "x1": 175},
+                    {"text": "01", "x0": 176, "x1": 183},
+                    {"text": "01", "x0": 203, "x1": 210},
+                    {"text": "Toolset", "x0": 214, "x1": 236},
+                    {"text": "NR", "x0": 489, "x1": 497},
+                    {"text": "1", "x0": 516, "x1": 520},
+                ]
+            },
+        ),
+    ]
+
+    out, metrics = apply_page_lane_inference(rows)
+
+    assert out[0].code == "E0223806 01"
+    assert out[0].revision == "04"
+    assert "E0223806" not in (out[0].description or "")
+    assert " 04 " not in f" {out[0].description or ''} "
+    assert out[0].metadata["anchor_reconstruction"]["field_order_locked"] is True
+    assert "description_anchor_leakage_suspected" not in out[0].warnings
+    assert "field_order_violation_suspected" not in out[0].warnings
+    assert metrics["description_anchor_leakage_count"] == 0
+    assert metrics["field_order_violation_count"] == 0

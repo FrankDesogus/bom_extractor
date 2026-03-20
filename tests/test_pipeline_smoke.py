@@ -45,6 +45,9 @@ def test_pipeline_smoke_repo_sample(tmp_path):
         "anchor_lane_conflict_count",
         "code_revision_boundary_uncertain_count",
         "anchor_field_reconstruction_uncertain_count",
+        "code_two_token_count",
+        "description_anchor_leakage_count",
+        "field_order_violation_count",
         "high_anchor_integrity_row_count",
         "low_anchor_integrity_row_count",
         "uom_quantity_pair_detected_count",
@@ -87,6 +90,10 @@ def test_pipeline_repo_sample_reconstructs_anchor_fields_with_multi_token_code(t
 
     qty_row = next((row for row in rows if row.item == "0040"), None)
     assert qty_row is not None
+    assert qty_row.code == "E0223806 01"
+    assert qty_row.revision == "04"
+    assert "E0223806" not in (qty_row.description or "")
+    assert " 04 " not in f" {qty_row.description or ''} "
     assert qty_row.uom == "NR"
     assert qty_row.quantity_raw == "1"
     assert qty_row.uom != qty_row.quantity_raw
@@ -94,3 +101,6 @@ def test_pipeline_repo_sample_reconstructs_anchor_fields_with_multi_token_code(t
     metrics = summary.pages[0].layout_model.get("row_boundary_metrics", {})
     assert metrics["clean_anchor_row_count"] >= 15
     assert metrics["high_anchor_integrity_row_count"] >= 10
+    assert metrics["code_two_token_count"] >= 10
+    assert metrics["description_anchor_leakage_count"] == 0
+    assert metrics["field_order_violation_count"] == 0

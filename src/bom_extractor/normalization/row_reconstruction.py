@@ -99,6 +99,27 @@ class AnchorIntegrity:
         return self.code_revision_separation_confidence >= 0.58
 
 
+@dataclass(frozen=True)
+class LeftToRightAnchorReconstruction:
+    item: str | None
+    type_raw: str | None
+    code: str | None
+    revision: str | None
+    description: str | None
+    uom: str | None
+    quantity_raw: str | None
+    code_token_indices: tuple[int, ...]
+    revision_token_index: int | None
+    description_token_indices: tuple[int, ...]
+    later_token_indices: tuple[int, ...]
+    code_token_count: int
+    description_start_index: int | None
+    code_revision_boundary_confidence: float
+    field_order_locked: bool
+    field_order_violation_suspected: bool
+    description_anchor_leakage_suspected: bool
+
+
 def _token_centers(row: RawRowRecord) -> list[tuple[str, float]]:
     word_boxes = row.metadata.get("word_boxes") if isinstance(row.metadata, dict) else None
     if isinstance(word_boxes, list) and word_boxes:
@@ -376,33 +397,223 @@ def _later_revision_exists(tokens: list[TokenSpan], current_idx: int, stop_idx: 
     return False
 
 
-def _should_extend_code_segment(
-    candidate: TokenSpan,
-    previous: TokenSpan,
+def _description_lane_start(lane_model: PageLaneModel, revision_token: TokenSpan | None, code_end: TokenSpan) -> float:
+    description_center = _lane_center(lane_model, "description")
+    revision_center = _lane_center(lane_model, "revision")
+    candidate_floor = revision_token.x1 + 2.0 if revision_token is not None else code_end.x1 + 8.0
+    if description_center is None:
+        return candidate_floor
+    if revision_center is not None and description_center <= revision_center:
+        return candidate_floor
+    return max(candidate_floor, min(description_center - 18.0, candidate_floor + 18.0))
+
+
+def _stronger_description_evidence(token: TokenSpan, lane_model: PageLaneModel) -> bool:
+    if not normalize_space(token.text):
+        return False
+    if token.text.upper() in UOM_TOKENS:
+        return False
+    if _code_shape_score(token.text) >= 0.6:
+        return False
+    description_dist = _distance_to_lane(token, lane_model, "description")
+    code_dist = _distance_to_lane(token, lane_model, "code")
+    revision_dist = _distance_to_lane(token, lane_model, "revision")
+    if description_dist == 1e9:
+        return any(ch.isalpha() for ch in token.text)
+    return bool(
+        token.x_center >= (_lane_center(lane_model, "revision") or token.x_center)
+        and description_dist + 8.0 < min(code_dist, revision_dist)
+    )
+
+
+def _select_code_tokens(
     tokens: list[TokenSpan],
+    code_start_idx: int,
     stop_idx: int,
     lane_model: PageLaneModel,
-    cutoff: float,
-) -> bool:
-    gap = max(0.0, candidate.x0 - previous.x1)
+) -> tuple[list[TokenSpan], float, bool]:
+    code_start = tokens[code_start_idx]
+    cutoff = _code_revision_cutoff(lane_model, code_start)
+    code_tokens = [code_start]
+    boundary_uncertain = False
+
+    if code_start_idx + 1 >= stop_idx:
+        return code_tokens, cutoff, boundary_uncertain
+
+    candidate = tokens[code_start_idx + 1]
+    gap = max(0.0, candidate.x0 - code_start.x1)
     text = normalize_space(candidate.text)
-    if not text or text.upper() in UOM_TOKENS:
-        return False
-    if looks_like_quantity(text) and not _plausible_revision(text):
-        return False
-    if gap > 22.0:
-        return False
-    if _code_shape_score(text) >= 0.6:
-        return candidate.x_center <= cutoff + 10.0
+    if not text or text.upper() in UOM_TOKENS or gap > 22.0:
+        return code_tokens, cutoff, boundary_uncertain
     if not _plausible_revision(text):
-        return False
+        return code_tokens, cutoff, boundary_uncertain
+    if _stronger_description_evidence(candidate, lane_model):
+        return code_tokens, cutoff, boundary_uncertain
 
     code_dist = _distance_to_lane(candidate, lane_model, "code")
     rev_dist = _distance_to_lane(candidate, lane_model, "revision")
-    closer_to_code = code_dist <= rev_dist - 4.0
-    before_cutoff = candidate.x_center <= cutoff
+    before_cutoff = candidate.x_center <= cutoff + 6.0
     trailing_revision_exists = _later_revision_exists(tokens, candidate.index, stop_idx, lane_model)
-    return bool(trailing_revision_exists or (before_cutoff and closer_to_code))
+    closer_to_code = code_dist <= rev_dist - 6.0
+    near_code_lane = code_dist <= max(18.0, rev_dist)
+
+    if before_cutoff and trailing_revision_exists and (closer_to_code or near_code_lane):
+        code_tokens.append(candidate)
+    elif before_cutoff and near_code_lane and _lane_center(lane_model, "revision") is None:
+        code_tokens.append(candidate)
+        boundary_uncertain = True
+
+    return code_tokens, cutoff, boundary_uncertain
+
+
+def _select_revision_token(
+    tokens: list[TokenSpan],
+    code_end_idx: int,
+    stop_idx: int,
+    lane_model: PageLaneModel,
+) -> tuple[TokenSpan | None, bool]:
+    revision_token: TokenSpan | None = None
+    uncertain = False
+    for token in tokens[code_end_idx + 1 : stop_idx]:
+        if not _plausible_revision(token.text):
+            if _stronger_description_evidence(token, lane_model):
+                break
+            continue
+        if _stronger_description_evidence(token, lane_model):
+            break
+        code_dist = _distance_to_lane(token, lane_model, "code")
+        rev_dist = _distance_to_lane(token, lane_model, "revision")
+        if rev_dist <= code_dist + 6.0 or token.x_center > (_lane_center(lane_model, "revision") or token.x_center - 1):
+            revision_token = token
+            if rev_dist > code_dist + 2.0:
+                uncertain = True
+            break
+        uncertain = True
+        break
+    return revision_token, uncertain
+
+
+def _split_description_and_later_tokens(
+    tokens: list[TokenSpan],
+    start_idx: int,
+    stop_idx: int,
+    lane_model: PageLaneModel,
+) -> tuple[list[TokenSpan], list[TokenSpan], bool]:
+    description_tokens: list[TokenSpan] = []
+    later_tokens: list[TokenSpan] = []
+    locked_description = False
+    leakage_suspected = False
+    for token in tokens[start_idx:stop_idx]:
+        text = normalize_space(token.text)
+        if not text:
+            continue
+        if text.upper() in UOM_TOKENS:
+            break
+        if not locked_description:
+            locked_description = True
+        if _code_shape_score(text) >= 0.6:
+            leakage_suspected = True
+            later_tokens.append(token)
+            continue
+        if _plausible_revision(text):
+            code_dist = _distance_to_lane(token, lane_model, "code")
+            rev_dist = _distance_to_lane(token, lane_model, "revision")
+            desc_dist = _distance_to_lane(token, lane_model, "description")
+            if min(code_dist, rev_dist) + 6.0 < desc_dist:
+                leakage_suspected = True
+                later_tokens.append(token)
+                continue
+        description_tokens.append(token)
+    return description_tokens, later_tokens, leakage_suspected
+
+
+def _compose_left_to_right_reconstruction(row: RawRowRecord, lane_model: PageLaneModel) -> LeftToRightAnchorReconstruction | None:
+    tokens = _token_spans(row)
+    if not tokens:
+        return None
+
+    item = normalize_space(tokens[0].text) if looks_like_item(tokens[0].text) else None
+    code_start_idx = _find_code_start_index(tokens)
+    if code_start_idx is None:
+        return LeftToRightAnchorReconstruction(
+            item=item,
+            type_raw=normalize_space(" ".join(token.text for token in tokens[1:])) or None,
+            code=None,
+            revision=None,
+            description=None,
+            uom=None,
+            quantity_raw=None,
+            code_token_indices=(),
+            revision_token_index=None,
+            description_token_indices=(),
+            later_token_indices=(),
+            code_token_count=0,
+            description_start_index=None,
+            code_revision_boundary_confidence=0.2,
+            field_order_locked=False,
+            field_order_violation_suspected=False,
+            description_anchor_leakage_suspected=False,
+        )
+
+    uom_idx, quantity_idx = _assign_uom_quantity_pair(row, tokens, code_start_idx)
+    stop_idx = min(idx for idx in (uom_idx, quantity_idx, len(tokens)) if idx is not None)
+    code_tokens, cutoff, boundary_uncertain = _select_code_tokens(tokens, code_start_idx, stop_idx, lane_model)
+    code_end_idx = code_tokens[-1].index
+    revision_token, revision_uncertain = _select_revision_token(tokens, code_end_idx, stop_idx, lane_model)
+
+    description_start_idx = (revision_token.index + 1) if revision_token is not None else (code_end_idx + 1)
+    description_tokens, later_tokens, leakage_suspected = _split_description_and_later_tokens(
+        tokens,
+        description_start_idx,
+        stop_idx,
+        lane_model,
+    )
+    description_start = description_tokens[0].index if description_tokens else None
+
+    boundary_confidence = 0.34
+    if code_tokens:
+        boundary_confidence += 0.16
+    if len(code_tokens) == 2:
+        boundary_confidence += 0.18
+    if revision_token is not None:
+        boundary_confidence += 0.2
+        if revision_token.x_center >= _description_lane_start(lane_model, revision_token, code_tokens[-1]) - 18.0:
+            boundary_confidence += 0.08
+        if revision_token.x_center > code_tokens[-1].x_center + 8.0:
+            boundary_confidence += 0.08
+    if boundary_uncertain or revision_uncertain:
+        boundary_confidence -= 0.18
+    if leakage_suspected:
+        boundary_confidence -= 0.1
+
+    type_tokens = tokens[1:code_start_idx] if item else tokens[:code_start_idx]
+    field_order_violation_suspected = False
+    if revision_token is not None:
+        desc_floor = _description_lane_start(lane_model, revision_token, code_tokens[-1])
+        for token in later_tokens:
+            if token.x_center < desc_floor - 10.0:
+                field_order_violation_suspected = True
+                break
+
+    return LeftToRightAnchorReconstruction(
+        item=item,
+        type_raw=normalize_space(" ".join(token.text for token in type_tokens)) or None,
+        code=normalize_space(" ".join(token.text for token in code_tokens)) or None,
+        revision=normalize_space(revision_token.text) if revision_token is not None else None,
+        description=normalize_space(" ".join(token.text for token in description_tokens)) or None,
+        uom=normalize_space(tokens[uom_idx].text) if uom_idx is not None else None,
+        quantity_raw=normalize_space(tokens[quantity_idx].text) if quantity_idx is not None else None,
+        code_token_indices=tuple(token.index for token in code_tokens),
+        revision_token_index=revision_token.index if revision_token is not None else None,
+        description_token_indices=tuple(token.index for token in description_tokens),
+        later_token_indices=tuple(token.index for token in later_tokens),
+        code_token_count=len(code_tokens),
+        description_start_index=description_start,
+        code_revision_boundary_confidence=round(max(0.0, min(1.0, boundary_confidence)), 3),
+        field_order_locked=bool(description_tokens),
+        field_order_violation_suspected=field_order_violation_suspected,
+        description_anchor_leakage_suspected=leakage_suspected,
+    )
 
 
 def _assign_uom_quantity_pair(row: RawRowRecord, tokens: list[TokenSpan], code_start_idx: int | None) -> tuple[int | None, int | None]:
@@ -462,6 +673,8 @@ def _apply_anchor_integrity_warnings(row: RawRowRecord) -> None:
         "anchor_field_reconstruction_uncertain",
         "anchor_field_integrity_low",
         "uom_quantity_pair_incomplete",
+        "description_anchor_leakage_suspected",
+        "field_order_violation_suspected",
     ):
         if warning in row.warnings:
             row.warnings.remove(warning)
@@ -476,80 +689,66 @@ def _apply_anchor_integrity_warnings(row: RawRowRecord) -> None:
     if integrity.score < 0.55:
         row.warnings.append("anchor_field_integrity_low")
 
+    reconstruction = row.metadata.get("anchor_reconstruction") if isinstance(row.metadata, dict) else None
+    if isinstance(reconstruction, dict):
+        if looks_like_item(row.item) and integrity.code_is_plausible and reconstruction.get("description_anchor_leakage_suspected") is True:
+            row.warnings.append("description_anchor_leakage_suspected")
+        if looks_like_item(row.item) and integrity.code_is_plausible and reconstruction.get("field_order_violation_suspected") is True:
+            row.warnings.append("field_order_violation_suspected")
+
 
 def _reconstruct_anchor_fields(row: RawRowRecord, lane_model: PageLaneModel) -> None:
-    tokens = _token_spans(row)
-    if not tokens:
+    reconstruction = _compose_left_to_right_reconstruction(row, lane_model)
+    if reconstruction is None:
         return
-
-    if looks_like_item(tokens[0].text):
-        row.item = normalize_space(tokens[0].text)
-
-    code_start_idx = _find_code_start_index(tokens)
-    if code_start_idx is None:
+    if reconstruction.code is None:
         _apply_anchor_integrity_warnings(row)
         return
 
-    uom_idx, quantity_idx = _assign_uom_quantity_pair(row, tokens, code_start_idx)
-    stop_idx = min(idx for idx in (uom_idx, quantity_idx, len(tokens)) if idx is not None)
-    code_start = tokens[code_start_idx]
-    cutoff = _code_revision_cutoff(lane_model, code_start)
-
-    code_tokens = [code_start]
-    cursor = code_start
-    for token in tokens[code_start_idx + 1 : stop_idx]:
-        if _should_extend_code_segment(token, cursor, tokens, stop_idx, lane_model, cutoff):
-            code_tokens.append(token)
-            cursor = token
-            continue
-        break
-
-    code_end_idx = code_tokens[-1].index
-    revision_candidates = [
-        token
-        for token in tokens[code_end_idx + 1 : stop_idx]
-        if _plausible_revision(token.text)
-    ]
-    revision_token = revision_candidates[0] if revision_candidates else None
-
-    row.code = normalize_space(" ".join(token.text for token in code_tokens))
-    row.revision = normalize_space(revision_token.text) if revision_token is not None else None
-
-    boundary_confidence = 0.45
-    if revision_token is not None:
-        code_dist = _distance_to_lane(code_tokens[-1], lane_model, "code")
-        rev_dist = _distance_to_lane(revision_token, lane_model, "revision")
-        if len(code_tokens) > 1:
-            boundary_confidence += 0.18
-        if revision_token.x_center > code_tokens[-1].x_center + 8.0:
-            boundary_confidence += 0.18
-        if rev_dist <= code_dist + 10.0:
-            boundary_confidence += 0.12
-        if revision_token.x_center > cutoff:
-            boundary_confidence += 0.08
-    elif len(code_tokens) == 1:
-        boundary_confidence = 0.35
+    row.item = reconstruction.item
+    row.type_raw = reconstruction.type_raw
+    row.code = reconstruction.code
+    row.revision = reconstruction.revision
+    row.description = reconstruction.description
+    row.uom = reconstruction.uom
+    row.quantity_raw = reconstruction.quantity_raw
 
     row.metadata["anchor_reconstruction"] = {
-        "token_count": len(tokens),
-        "code_tokens": [token.text for token in code_tokens],
-        "code_token_indices": [token.index for token in code_tokens],
-        "revision_token": revision_token.text if revision_token is not None else None,
-        "revision_token_index": revision_token.index if revision_token is not None else None,
-        "uom_token_index": uom_idx,
-        "quantity_token_index": quantity_idx,
-        "code_revision_cutoff": round(cutoff, 3),
-        "code_revision_boundary_confidence": round(max(0.0, min(1.0, boundary_confidence)), 3),
+        "code_tokens": row.code.split() if row.code else [],
+        "code_token_indices": list(reconstruction.code_token_indices),
+        "code_token_count": reconstruction.code_token_count,
+        "revision_token": reconstruction.revision,
+        "revision_token_index": reconstruction.revision_token_index,
+        "description_token_indices": list(reconstruction.description_token_indices),
+        "later_token_indices": list(reconstruction.later_token_indices),
+        "description_start_index": reconstruction.description_start_index,
+        "field_order_locked": reconstruction.field_order_locked,
+        "field_order_violation_suspected": reconstruction.field_order_violation_suspected,
+        "description_anchor_leakage_suspected": reconstruction.description_anchor_leakage_suspected,
+        "code_revision_boundary_confidence": reconstruction.code_revision_boundary_confidence,
     }
     _apply_anchor_integrity_warnings(row)
 
 
 def _assign_fields_by_lanes(row: RawRowRecord, lane_model: PageLaneModel) -> None:
-    tokens = _token_centers(row)
-    if not tokens:
+    spans = _token_spans(row)
+    if not spans:
         return
+    locked = row.metadata.get("anchor_reconstruction") if isinstance(row.metadata, dict) else {}
+    locked_indices = set()
+    if isinstance(locked, dict):
+        for key in ("code_token_indices", "description_token_indices", "later_token_indices"):
+            values = locked.get(key)
+            if isinstance(values, list):
+                locked_indices.update(v for v in values if isinstance(v, int))
+        for key in ("revision_token_index",):
+            value = locked.get(key)
+            if isinstance(value, int):
+                locked_indices.add(value)
+    tokens = [(span, span.x_center) for span in spans if span.index not in locked_indices]
     uncertain = False
-    for token, x in tokens:
+    for span, x in tokens:
+        token = span.text
         if looks_like_item(token):
             _set_if_missing(row, "item", token)
             continue
@@ -589,7 +788,8 @@ def _assign_fields_by_lanes(row: RawRowRecord, lane_model: PageLaneModel) -> Non
         elif role in {"notes", "trade_name", "company_name"}:
             setattr(row, role, _append_field_value(getattr(row, role), token))
         else:
-            row.description = _append_field_value(row.description, token)
+            if not row.metadata.get("anchor_reconstruction", {}).get("field_order_locked"):
+                row.description = _append_field_value(row.description, token)
         if certainty < 0.35:
             uncertain = True
 
@@ -815,6 +1015,8 @@ def _denoise_row_warnings(row: RawRowRecord, lane_model: PageLaneModel) -> int:
             "code_revision_boundary_uncertain",
             "anchor_field_reconstruction_uncertain",
             "anchor_field_integrity_low",
+            "description_anchor_leakage_suspected",
+            "field_order_violation_suspected",
         ):
             if warning in row.warnings:
                 row.warnings.remove(warning)
@@ -869,7 +1071,13 @@ def _denoise_row_warnings(row: RawRowRecord, lane_model: PageLaneModel) -> int:
         suppressed += 1
 
     if integrity.score >= 0.78:
-        for warning in ("code_revision_boundary_uncertain", "anchor_field_reconstruction_uncertain", "anchor_field_integrity_low"):
+        for warning in (
+            "code_revision_boundary_uncertain",
+            "anchor_field_reconstruction_uncertain",
+            "anchor_field_integrity_low",
+            "description_anchor_leakage_suspected",
+            "field_order_violation_suspected",
+        ):
             if warning in row.warnings:
                 row.warnings.remove(warning)
                 suppressed += 1
@@ -929,6 +1137,14 @@ def apply_page_lane_inference(rows: list[RawRowRecord]) -> tuple[list[RawRowReco
         "anchor_field_reconstruction_uncertain_count": sum(
             1 for r in rows if "anchor_field_reconstruction_uncertain" in r.warnings
         ),
+        "code_two_token_count": sum(
+            1
+            for r in rows
+            if isinstance(r.metadata.get("anchor_reconstruction"), dict)
+            and int(r.metadata["anchor_reconstruction"].get("code_token_count", 0)) == 2
+        ),
+        "description_anchor_leakage_count": sum(1 for r in rows if "description_anchor_leakage_suspected" in r.warnings),
+        "field_order_violation_count": sum(1 for r in rows if "field_order_violation_suspected" in r.warnings),
         "high_anchor_integrity_row_count": sum(
             1
             for r in rows
