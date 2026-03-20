@@ -309,3 +309,85 @@ def test_header_and_footer_rows_are_structural_non_bom_states():
     assert out[1].metadata["row_structure_classification"] == "non_bom_structural_row"
     assert metrics["table_header_row_count"] == 1
     assert metrics["non_bom_structural_row_count"] == 1
+
+
+def test_lane_aware_code_reconstruction_keeps_multi_token_code_and_separate_revision():
+    rows = [
+        _row(
+            1,
+            "0005 DD Disegno di Ingombro E0216160 01 02 DD QUIRIS Laser Unit",
+            ["0005 DD Disegno di Ingombro", "E0216160", "01 02 DD QUIRIS Laser Unit"],
+            bbox=(30, 202, 271, 210),
+            metadata={
+                "word_boxes": [
+                    {"text": "0005", "x0": 30, "x1": 42},
+                    {"text": "DD", "x0": 49, "x1": 57},
+                    {"text": "Disegno", "x0": 59, "x1": 80},
+                    {"text": "di", "x0": 81, "x1": 86},
+                    {"text": "Ingombro", "x0": 87, "x1": 111},
+                    {"text": "E0216160", "x0": 149, "x1": 175},
+                    {"text": "01", "x0": 176, "x1": 183},
+                    {"text": "02", "x0": 203, "x1": 210},
+                    {"text": "DD", "x0": 214, "x1": 222},
+                    {"text": "QUIRIS", "x0": 224, "x1": 243},
+                ]
+            },
+        ),
+        _row(
+            2,
+            "0010 TYPE E0181297 02 NR 3",
+            ["0010", "TYPE", "E0181297", "02", "NR", "3"],
+            bbox=(30, 214, 250, 222),
+            metadata={
+                "word_boxes": [
+                    {"text": "0010", "x0": 30, "x1": 42},
+                    {"text": "TYPE", "x0": 50, "x1": 82},
+                    {"text": "E0181297", "x0": 149, "x1": 175},
+                    {"text": "02", "x0": 202, "x1": 209},
+                    {"text": "NR", "x0": 232, "x1": 244},
+                    {"text": "3", "x0": 260, "x1": 264},
+                ]
+            },
+        ),
+    ]
+
+    out, metrics = apply_page_lane_inference(rows)
+
+    assert out[0].code == "E0216160 01"
+    assert out[0].revision == "02"
+    assert out[0].metadata["row_structure_classification"] == "clean_anchor_row"
+    assert "code_revision_boundary_uncertain" not in out[0].warnings
+    assert metrics["clean_anchor_row_count"] >= 1
+    assert metrics["high_anchor_integrity_row_count"] >= 1
+
+
+def test_uom_and_quantity_remain_separate_and_pair_metrics_are_emitted():
+    rows = [
+        _row(
+            1,
+            "0040 Chassis Elettrico E0223806 01 04 QLU Elettrical chassis 1 1 NR 1",
+            ["0040 Chassis Elettrico", "E0223806", "01 04 QLU Elettrical chassis 1 1", "NR", "1"],
+            bbox=(30, 240, 520, 248),
+            metadata={
+                "word_boxes": [
+                    {"text": "0040", "x0": 30, "x1": 42},
+                    {"text": "Chassis", "x0": 49, "x1": 72},
+                    {"text": "Elettrico", "x0": 74, "x1": 100},
+                    {"text": "E0223806", "x0": 149, "x1": 175},
+                    {"text": "01", "x0": 176, "x1": 183},
+                    {"text": "04", "x0": 203, "x1": 210},
+                    {"text": "QLU", "x0": 214, "x1": 226},
+                    {"text": "NR", "x0": 489, "x1": 497},
+                    {"text": "1", "x0": 516, "x1": 520},
+                ]
+            },
+        ),
+    ]
+
+    out, metrics = apply_page_lane_inference(rows)
+
+    assert out[0].uom == "NR"
+    assert out[0].quantity_raw == "1"
+    assert out[0].uom != out[0].quantity_raw
+    assert metrics["uom_quantity_pair_detected_count"] == 1
+    assert "uom_quantity_pair_incomplete" not in out[0].warnings
