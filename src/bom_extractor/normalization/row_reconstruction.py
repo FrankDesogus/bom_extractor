@@ -69,6 +69,36 @@ class PageLaneModel:
     lane_ambiguity_roles: list[str]
 
 
+@dataclass(frozen=True)
+class TokenSpan:
+    index: int
+    text: str
+    x0: float
+    x1: float
+    x_center: float
+
+
+@dataclass(frozen=True)
+class AnchorIntegrity:
+    code_plausibility: float
+    revision_plausibility: float
+    code_revision_separation_confidence: float
+    uom_quantity_coherence: float
+    score: float
+
+    @property
+    def code_is_plausible(self) -> bool:
+        return self.code_plausibility >= 0.55
+
+    @property
+    def revision_is_plausible(self) -> bool:
+        return self.revision_plausibility >= 0.6
+
+    @property
+    def separation_is_strong(self) -> bool:
+        return self.code_revision_separation_confidence >= 0.58
+
+
 def _token_centers(row: RawRowRecord) -> list[tuple[str, float]]:
     word_boxes = row.metadata.get("word_boxes") if isinstance(row.metadata, dict) else None
     if isinstance(word_boxes, list) and word_boxes:
@@ -91,6 +121,28 @@ def _token_centers(row: RawRowRecord) -> list[tuple[str, float]]:
             if normalize_space(col)
         ]
     return []
+
+
+def _token_spans(row: RawRowRecord) -> list[TokenSpan]:
+    word_boxes = row.metadata.get("word_boxes") if isinstance(row.metadata, dict) else None
+    if isinstance(word_boxes, list) and word_boxes:
+        spans: list[TokenSpan] = []
+        for idx, box in enumerate(word_boxes):
+            text = normalize_space(str(box.get("text", "")))
+            if not text:
+                continue
+            x0 = float(box.get("x0", 0.0))
+            x1 = float(box.get("x1", x0))
+            spans.append(TokenSpan(index=len(spans), text=text, x0=x0, x1=x1, x_center=(x0 + x1) / 2.0))
+        return spans
+    centers = _token_centers(row)
+    if not centers:
+        return []
+    inferred_width = 12.0
+    return [
+        TokenSpan(index=idx, text=text, x0=center - inferred_width / 2.0, x1=center + inferred_width / 2.0, x_center=center)
+        for idx, (text, center) in enumerate(centers)
+    ]
 
 
 def _code_shape_score(token: str) -> float:
@@ -121,30 +173,109 @@ def _cluster_centers(samples: list[float], tolerance: float = LANE_TOLERANCE) ->
     return [(float(median(group)), len(group), min(group), max(group)) for group in clusters]
 
 
+def _find_code_start_index(tokens: list[TokenSpan]) -> int | None:
+    for token in tokens:
+        if _code_shape_score(token.text) >= 0.6 or looks_like_code(token.text):
+            return token.index
+    return None
+
+
+def _find_quantity_index(tokens: list[TokenSpan], code_start_idx: int | None) -> int | None:
+    lower_bound = 0 if code_start_idx is None else code_start_idx + 1
+    for token in reversed(tokens):
+        if token.index < lower_bound:
+            break
+        if not looks_like_quantity(token.text):
+            continue
+        trailing_tokens = len(tokens) - token.index - 1
+        if trailing_tokens <= 1:
+            return token.index
+        if token.index > lower_bound and tokens[token.index - 1].text.upper() in UOM_TOKENS:
+            return token.index
+    return None
+
+
+def _find_uom_index(tokens: list[TokenSpan], code_start_idx: int | None, quantity_idx: int | None) -> int | None:
+    lower_bound = 0 if code_start_idx is None else code_start_idx + 1
+    upper_bound = len(tokens) if quantity_idx is None else quantity_idx
+    for token in reversed(tokens[lower_bound:upper_bound]):
+        if token.text.upper() in UOM_TOKENS:
+            return token.index
+    return None
+
+
+def _find_revision_candidates(tokens: list[TokenSpan], code_start_idx: int | None, stop_idx: int) -> list[TokenSpan]:
+    if code_start_idx is None:
+        return []
+    candidates: list[TokenSpan] = []
+    for token in tokens[code_start_idx + 1 : stop_idx]:
+        text = normalize_space(token.text)
+        if not text or text.upper() in UOM_TOKENS:
+            continue
+        if _plausible_revision(text):
+            candidates.append(token)
+    return candidates
+
+
+def _structural_anchor_samples(row: RawRowRecord) -> dict[str, list[float]]:
+    samples: dict[str, list[float]] = {role: [] for role in ("item", "type", "code", "revision", "description", "uom", "quantity")}
+    tokens = _token_spans(row)
+    if not tokens:
+        return samples
+
+    code_start_idx = _find_code_start_index(tokens)
+    quantity_idx = _find_quantity_index(tokens, code_start_idx)
+    uom_idx = _find_uom_index(tokens, code_start_idx, quantity_idx)
+    stop_idx = min(idx for idx in (uom_idx, quantity_idx, len(tokens)) if idx is not None)
+    revision_candidates = _find_revision_candidates(tokens, code_start_idx, stop_idx)
+
+    first = tokens[0]
+    if looks_like_item(first.text):
+        samples["item"].append(first.x_center)
+
+    if code_start_idx is not None:
+        code_token = tokens[code_start_idx]
+        samples["code"].append(code_token.x_center)
+        for token in tokens[:code_start_idx]:
+            if token.text.isalpha() and token.text.upper() not in UOM_TOKENS:
+                samples["type"].append(token.x_center)
+        if revision_candidates:
+            samples["revision"].append(revision_candidates[-1].x_center)
+        for token in tokens[code_start_idx + 1 : stop_idx]:
+            if token not in revision_candidates and len(token.text) >= 4 and not looks_like_quantity(token.text):
+                samples["description"].append(token.x_center)
+
+    if uom_idx is not None:
+        samples["uom"].append(tokens[uom_idx].x_center)
+    if quantity_idx is not None:
+        samples["quantity"].append(tokens[quantity_idx].x_center)
+    return samples
+
+
 def infer_page_lane_model(rows: list[RawRowRecord]) -> PageLaneModel:
     role_samples: dict[str, list[float]] = {role: [] for role in ("item", "type", "code", "revision", "description", "uom", "quantity", "notes", "trade_name", "company_name")}
     for row in rows:
+        structural_samples = _structural_anchor_samples(row)
+        for role in ("item", "type", "code", "revision", "description", "uom", "quantity"):
+            role_samples[role].extend(structural_samples.get(role, []))
+
         for token, center in _token_centers(row):
             low = token.lower()
-            if looks_like_item(token):
+            if looks_like_item(token) and center not in structural_samples["item"]:
                 role_samples["item"].append(center)
-            if _code_shape_score(token) >= 0.6:
+            if _code_shape_score(token) >= 0.6 and center not in structural_samples["code"]:
                 role_samples["code"].append(center)
-            if token.upper() in UOM_TOKENS:
+            if token.upper() in UOM_TOKENS and center not in structural_samples["uom"]:
                 role_samples["uom"].append(center)
-            if looks_like_quantity(token):
-                role_samples["quantity"].append(center)
             if any(k in low for k in ("note", "remark", "spec", "finish", "hardware")):
                 role_samples["notes"].append(center)
             if any(k in low for k in ("trade", "brand", "marca")):
                 role_samples["trade_name"].append(center)
             if any(k in low for k in ("supplier", "company", "fornitore", "srl", "spa", "inc", "gmbh", "ltd", "llc")):
                 role_samples["company_name"].append(center)
-            if 1 <= len(token) <= 4 and token.isalnum() and any(ch.isdigit() for ch in token):
-                role_samples["revision"].append(center)
-            if token.isalpha() and len(token) <= 8 and token.upper() not in UOM_TOKENS:
+            if token.isalpha() and len(token) <= 8 and token.upper() not in UOM_TOKENS and center not in structural_samples["type"]:
                 role_samples["type"].append(center)
-            if len(token) >= 4 and not looks_like_quantity(token):
+            if len(token) >= 4 and not looks_like_quantity(token) and center not in structural_samples["description"]:
                 role_samples["description"].append(center)
 
     lanes: dict[str, LaneCandidate] = {}
@@ -212,6 +343,205 @@ def _nearest_lane_role(x: float, lane_model: PageLaneModel, allowed_roles: tuple
 def _set_if_missing(row: RawRowRecord, field: str, value: str) -> None:
     if not getattr(row, field):
         setattr(row, field, normalize_space(value))
+
+
+def _lane_center(lane_model: PageLaneModel, role: str) -> float | None:
+    lane = lane_model.lanes.get(role)
+    return lane.x_center if lane is not None else None
+
+
+def _distance_to_lane(token: TokenSpan, lane_model: PageLaneModel, role: str) -> float:
+    center = _lane_center(lane_model, role)
+    if center is None:
+        return 1e9
+    return abs(token.x_center - center)
+
+
+def _code_revision_cutoff(lane_model: PageLaneModel, code_token: TokenSpan) -> float:
+    code_center = _lane_center(lane_model, "code")
+    revision_center = _lane_center(lane_model, "revision")
+    if code_center is not None and revision_center is not None and revision_center > code_center + 6:
+        return (code_center + revision_center) / 2.0
+    return max(code_token.x1 + 18.0, code_token.x_center + 20.0)
+
+
+def _later_revision_exists(tokens: list[TokenSpan], current_idx: int, stop_idx: int, lane_model: PageLaneModel) -> bool:
+    for token in tokens[current_idx + 1 : stop_idx]:
+        if not _plausible_revision(token.text):
+            continue
+        code_dist = _distance_to_lane(token, lane_model, "code")
+        rev_dist = _distance_to_lane(token, lane_model, "revision")
+        if rev_dist <= code_dist + 8 or code_dist == 1e9:
+            return True
+    return False
+
+
+def _should_extend_code_segment(
+    candidate: TokenSpan,
+    previous: TokenSpan,
+    tokens: list[TokenSpan],
+    stop_idx: int,
+    lane_model: PageLaneModel,
+    cutoff: float,
+) -> bool:
+    gap = max(0.0, candidate.x0 - previous.x1)
+    text = normalize_space(candidate.text)
+    if not text or text.upper() in UOM_TOKENS:
+        return False
+    if looks_like_quantity(text) and not _plausible_revision(text):
+        return False
+    if gap > 22.0:
+        return False
+    if _code_shape_score(text) >= 0.6:
+        return candidate.x_center <= cutoff + 10.0
+    if not _plausible_revision(text):
+        return False
+
+    code_dist = _distance_to_lane(candidate, lane_model, "code")
+    rev_dist = _distance_to_lane(candidate, lane_model, "revision")
+    closer_to_code = code_dist <= rev_dist - 4.0
+    before_cutoff = candidate.x_center <= cutoff
+    trailing_revision_exists = _later_revision_exists(tokens, candidate.index, stop_idx, lane_model)
+    return bool(trailing_revision_exists or (before_cutoff and closer_to_code))
+
+
+def _assign_uom_quantity_pair(row: RawRowRecord, tokens: list[TokenSpan], code_start_idx: int | None) -> tuple[int | None, int | None]:
+    quantity_idx = _find_quantity_index(tokens, code_start_idx)
+    uom_idx = _find_uom_index(tokens, code_start_idx, quantity_idx)
+    row.uom = normalize_space(tokens[uom_idx].text) if uom_idx is not None else None
+    row.quantity_raw = normalize_space(tokens[quantity_idx].text) if quantity_idx is not None else None
+    return uom_idx, quantity_idx
+
+
+def _anchor_integrity(row: RawRowRecord) -> AnchorIntegrity:
+    code_text = normalize_space(row.code or "")
+    code_core = code_text.split()[0] if code_text else ""
+    code_plausibility = _code_shape_score(code_core)
+    if code_text and len(code_text.split()) > 1 and all(_plausible_revision(part) for part in code_text.split()[1:]):
+        code_plausibility = min(1.0, code_plausibility + 0.12)
+
+    revision_plausibility = 1.0 if _plausible_revision(row.revision) else 0.0
+    separation_confidence = 0.2
+    reconstruction = row.metadata.get("anchor_reconstruction") if isinstance(row.metadata, dict) else None
+    if isinstance(reconstruction, dict):
+        boundary_confidence = reconstruction.get("code_revision_boundary_confidence")
+        if isinstance(boundary_confidence, (float, int)):
+            separation_confidence = float(boundary_confidence)
+    if revision_plausibility == 0.0:
+        separation_confidence = min(separation_confidence, 0.35)
+
+    if row.uom and row.quantity_raw:
+        uom_quantity_coherence = 1.0 if row.uom != row.quantity_raw and row.uom.upper() in UOM_TOKENS and looks_like_quantity(row.quantity_raw) else 0.35
+    elif row.uom or row.quantity_raw:
+        uom_quantity_coherence = 0.45
+    else:
+        uom_quantity_coherence = 0.7
+
+    score = round(
+        (code_plausibility * 0.4)
+        + (revision_plausibility * 0.25)
+        + (separation_confidence * 0.2)
+        + (uom_quantity_coherence * 0.15),
+        3,
+    )
+    return AnchorIntegrity(
+        code_plausibility=round(code_plausibility, 3),
+        revision_plausibility=round(revision_plausibility, 3),
+        code_revision_separation_confidence=round(separation_confidence, 3),
+        uom_quantity_coherence=round(uom_quantity_coherence, 3),
+        score=score,
+    )
+
+
+def _apply_anchor_integrity_warnings(row: RawRowRecord) -> None:
+    integrity = _anchor_integrity(row)
+    row.metadata["anchor_integrity"] = integrity.__dict__
+
+    for warning in (
+        "code_revision_boundary_uncertain",
+        "anchor_field_reconstruction_uncertain",
+        "anchor_field_integrity_low",
+        "uom_quantity_pair_incomplete",
+    ):
+        if warning in row.warnings:
+            row.warnings.remove(warning)
+
+    if (row.uom and not row.quantity_raw) or (row.quantity_raw and not row.uom):
+        row.warnings.append("uom_quantity_pair_incomplete")
+
+    if integrity.code_revision_separation_confidence < 0.58:
+        row.warnings.append("code_revision_boundary_uncertain")
+    if integrity.score < 0.78:
+        row.warnings.append("anchor_field_reconstruction_uncertain")
+    if integrity.score < 0.55:
+        row.warnings.append("anchor_field_integrity_low")
+
+
+def _reconstruct_anchor_fields(row: RawRowRecord, lane_model: PageLaneModel) -> None:
+    tokens = _token_spans(row)
+    if not tokens:
+        return
+
+    if looks_like_item(tokens[0].text):
+        row.item = normalize_space(tokens[0].text)
+
+    code_start_idx = _find_code_start_index(tokens)
+    if code_start_idx is None:
+        _apply_anchor_integrity_warnings(row)
+        return
+
+    uom_idx, quantity_idx = _assign_uom_quantity_pair(row, tokens, code_start_idx)
+    stop_idx = min(idx for idx in (uom_idx, quantity_idx, len(tokens)) if idx is not None)
+    code_start = tokens[code_start_idx]
+    cutoff = _code_revision_cutoff(lane_model, code_start)
+
+    code_tokens = [code_start]
+    cursor = code_start
+    for token in tokens[code_start_idx + 1 : stop_idx]:
+        if _should_extend_code_segment(token, cursor, tokens, stop_idx, lane_model, cutoff):
+            code_tokens.append(token)
+            cursor = token
+            continue
+        break
+
+    code_end_idx = code_tokens[-1].index
+    revision_candidates = [
+        token
+        for token in tokens[code_end_idx + 1 : stop_idx]
+        if _plausible_revision(token.text)
+    ]
+    revision_token = revision_candidates[0] if revision_candidates else None
+
+    row.code = normalize_space(" ".join(token.text for token in code_tokens))
+    row.revision = normalize_space(revision_token.text) if revision_token is not None else None
+
+    boundary_confidence = 0.45
+    if revision_token is not None:
+        code_dist = _distance_to_lane(code_tokens[-1], lane_model, "code")
+        rev_dist = _distance_to_lane(revision_token, lane_model, "revision")
+        if len(code_tokens) > 1:
+            boundary_confidence += 0.18
+        if revision_token.x_center > code_tokens[-1].x_center + 8.0:
+            boundary_confidence += 0.18
+        if rev_dist <= code_dist + 10.0:
+            boundary_confidence += 0.12
+        if revision_token.x_center > cutoff:
+            boundary_confidence += 0.08
+    elif len(code_tokens) == 1:
+        boundary_confidence = 0.35
+
+    row.metadata["anchor_reconstruction"] = {
+        "token_count": len(tokens),
+        "code_tokens": [token.text for token in code_tokens],
+        "code_token_indices": [token.index for token in code_tokens],
+        "revision_token": revision_token.text if revision_token is not None else None,
+        "revision_token_index": revision_token.index if revision_token is not None else None,
+        "uom_token_index": uom_idx,
+        "quantity_token_index": quantity_idx,
+        "code_revision_cutoff": round(cutoff, 3),
+        "code_revision_boundary_confidence": round(max(0.0, min(1.0, boundary_confidence)), 3),
+    }
+    _apply_anchor_integrity_warnings(row)
 
 
 def _assign_fields_by_lanes(row: RawRowRecord, lane_model: PageLaneModel) -> None:
@@ -373,7 +703,8 @@ def _row_structure_classification(row: RawRowRecord) -> str:
         lane_overlaps=list(lane_model_dict.get("lane_overlaps", [])) if isinstance(lane_model_dict, dict) else [],
         lane_ambiguity_roles=list(lane_model_dict.get("lane_ambiguity_roles", [])) if isinstance(lane_model_dict, dict) else [],
     )
-    anchor_ok = bool(row.item and row.code and _plausible_revision(row.revision))
+    integrity = _anchor_integrity(row)
+    anchor_ok = bool(looks_like_item(row.item) and integrity.code_is_plausible and integrity.revision_is_plausible)
     has_continuation = bool(row.metadata.get("stitched_fragments")) if isinstance(row.metadata, dict) else False
     unresolved_fragments = _has_unresolved_continuation_fragments(row)
     conflicting_anchor_lane = _has_strong_lane_conflict(row, lane_model)
@@ -386,7 +717,15 @@ def _row_structure_classification(row: RawRowRecord) -> str:
         return "table_header_row"
     if _looks_like_non_bom_structural_row(row):
         return "non_bom_structural_row"
-    if anchor_ok and not has_continuation and not unresolved_fragments and not right_fragment and not conflicting_anchor_lane:
+    if (
+        anchor_ok
+        and integrity.separation_is_strong
+        and not has_continuation
+        and not unresolved_fragments
+        and not right_fragment
+        and not conflicting_anchor_lane
+        and "anchor_field_integrity_low" not in row.warnings
+    ):
         return "clean_anchor_row"
     if anchor_ok and has_continuation and not conflicting_anchor_lane and not anchor_duplication:
         return "anchor_row_with_expandable_continuation"
@@ -414,8 +753,10 @@ def _lane_ambiguity_is_strong(row: RawRowRecord, lane_model: PageLaneModel) -> b
 def _apply_operational_confidence(row: RawRowRecord, lane_model: PageLaneModel) -> tuple[str, float]:
     base = float(row.parser_confidence)
     completeness = sum(1 for v in _row_anchor_status(row).values() if v)
+    integrity = _anchor_integrity(row)
     base += min(0.18, completeness * 0.035)
     base += (lane_model.lane_confidence_score - 0.5) * 0.08
+    base += (integrity.score - 0.6) * 0.18
 
     classification = _row_structure_classification(row)
     if classification == "clean_anchor_row":
@@ -429,6 +770,10 @@ def _apply_operational_confidence(row: RawRowRecord, lane_model: PageLaneModel) 
 
     if "field_assignment_uncertain" in row.warnings:
         base -= 0.1
+    if "code_revision_boundary_uncertain" in row.warnings:
+        base -= 0.08
+    if "anchor_field_integrity_low" in row.warnings:
+        base -= 0.16
     if "anchor_lane_conflict" in row.warnings:
         base -= 0.18
     if any(w in row.warnings for w in ("parent_row_uncertain", "orphan_continuation_fragment", "probable_header_leakage")):
@@ -450,7 +795,8 @@ def _is_meaningful_field_uncertainty(row: RawRowRecord) -> bool:
     if "field_assignment_uncertain" not in row.warnings:
         return False
     status = _row_anchor_status(row)
-    if status["item"] and status["code"] and status["revision"] and (status["uom"] or status["quantity_raw"]):
+    integrity = _anchor_integrity(row)
+    if status["item"] and integrity.code_is_plausible and integrity.revision_is_plausible and integrity.separation_is_strong:
         return False
     return True
 
@@ -459,9 +805,17 @@ def _denoise_row_warnings(row: RawRowRecord, lane_model: PageLaneModel) -> int:
     suppressed = 0
     classification = _row_structure_classification(row)
     has_attached = bool(row.metadata.get("stitched_fragments")) if isinstance(row.metadata, dict) else False
+    integrity = _anchor_integrity(row)
 
     if classification == "clean_anchor_row":
-        for warning in ("continuation_candidate", "field_assignment_uncertain", "lane_ambiguity"):
+        for warning in (
+            "continuation_candidate",
+            "field_assignment_uncertain",
+            "lane_ambiguity",
+            "code_revision_boundary_uncertain",
+            "anchor_field_reconstruction_uncertain",
+            "anchor_field_integrity_low",
+        ):
             if warning in row.warnings:
                 row.warnings.remove(warning)
                 suppressed += 1
@@ -514,6 +868,12 @@ def _denoise_row_warnings(row: RawRowRecord, lane_model: PageLaneModel) -> int:
         row.warnings.remove("field_assignment_uncertain")
         suppressed += 1
 
+    if integrity.score >= 0.78:
+        for warning in ("code_revision_boundary_uncertain", "anchor_field_reconstruction_uncertain", "anchor_field_integrity_low"):
+            if warning in row.warnings:
+                row.warnings.remove(warning)
+                suppressed += 1
+
     row.metadata["warning_severity"] = {
         warning: ("strong" if warning in STRONG_WARNING_SIGNALS else "soft")
         for warning in sorted(set(row.warnings))
@@ -541,6 +901,7 @@ def apply_page_lane_inference(rows: list[RawRowRecord]) -> tuple[list[RawRowReco
                 for role, lane in lane_model.lanes.items()
             },
         }
+        _reconstruct_anchor_fields(row, lane_model)
         _assign_fields_by_lanes(row, lane_model)
 
         if len(lane_model.lane_ambiguity_roles) >= 2 and "lane_ambiguity" not in row.warnings:
@@ -564,6 +925,21 @@ def apply_page_lane_inference(rows: list[RawRowRecord]) -> tuple[list[RawRowReco
         "lane_confidence_score": lane_model.lane_confidence_score,
         "field_assignment_uncertain_count": sum(1 for r in rows if "field_assignment_uncertain" in r.warnings),
         "anchor_lane_conflict_count": sum(1 for r in rows if "anchor_lane_conflict" in r.warnings),
+        "code_revision_boundary_uncertain_count": sum(1 for r in rows if "code_revision_boundary_uncertain" in r.warnings),
+        "anchor_field_reconstruction_uncertain_count": sum(
+            1 for r in rows if "anchor_field_reconstruction_uncertain" in r.warnings
+        ),
+        "high_anchor_integrity_row_count": sum(
+            1
+            for r in rows
+            if isinstance(r.metadata.get("anchor_integrity"), dict) and float(r.metadata["anchor_integrity"].get("score", 0.0)) >= 0.78
+        ),
+        "low_anchor_integrity_row_count": sum(
+            1
+            for r in rows
+            if isinstance(r.metadata.get("anchor_integrity"), dict) and float(r.metadata["anchor_integrity"].get("score", 0.0)) < 0.55
+        ),
+        "uom_quantity_pair_detected_count": sum(1 for r in rows if bool(r.uom and r.quantity_raw)),
         "rows_with_clean_anchor_alignment": sum(
             1
             for r in rows

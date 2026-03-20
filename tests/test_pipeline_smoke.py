@@ -43,6 +43,11 @@ def test_pipeline_smoke_repo_sample(tmp_path):
         "lane_confidence_score",
         "field_assignment_uncertain_count",
         "anchor_lane_conflict_count",
+        "code_revision_boundary_uncertain_count",
+        "anchor_field_reconstruction_uncertain_count",
+        "high_anchor_integrity_row_count",
+        "low_anchor_integrity_row_count",
+        "uom_quantity_pair_detected_count",
         "rows_with_clean_anchor_alignment",
         "expandable_field_attachment_count",
         "clean_anchor_row_count",
@@ -62,3 +67,30 @@ def test_pipeline_smoke_repo_sample(tmp_path):
     assert metrics["lane_count"] >= 1
     assert summary.page_state_distribution
     assert header_page.page_state is not None
+
+
+def test_pipeline_repo_sample_reconstructs_anchor_fields_with_multi_token_code(tmp_path):
+    sample = Path("E0181296 01-06_BOM.pdf")
+    if not sample.exists():
+        return
+
+    config = ExtractionConfig(output_dir=tmp_path, write_csv=False, write_parquet=False, max_pages=1)
+    pipeline = ExtractionPipeline(config)
+    rows, summary = pipeline.parse_document(sample)
+
+    target = next((row for row in rows if row.item == "0005"), None)
+    assert target is not None
+    assert target.code == "E0216160 01"
+    assert target.revision == "02"
+    assert target.metadata["row_structure_classification"] == "clean_anchor_row"
+    assert "code_revision_boundary_uncertain" not in target.warnings
+
+    qty_row = next((row for row in rows if row.item == "0040"), None)
+    assert qty_row is not None
+    assert qty_row.uom == "NR"
+    assert qty_row.quantity_raw == "1"
+    assert qty_row.uom != qty_row.quantity_raw
+
+    metrics = summary.pages[0].layout_model.get("row_boundary_metrics", {})
+    assert metrics["clean_anchor_row_count"] >= 15
+    assert metrics["high_anchor_integrity_row_count"] >= 10
