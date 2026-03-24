@@ -69,6 +69,7 @@ class ExtractionPipeline:
             document_metadata={"documents": [s.document_metadata for s in summaries]},
         )
         self.storage.write_jsonl(all_rows)
+        self.storage.write_provenance_jsonl(all_rows)
         if self.config.write_csv:
             self.storage.write_csv(all_rows)
         if self.config.write_parquet:

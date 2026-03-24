@@ -299,6 +299,97 @@ def test_orphan_fragment_row_gets_continuation_fragment_state():
     assert metrics["continuation_fragment_count"] >= 1
 
 
+def test_provenance_exists_for_normal_anchor_row():
+    rows = [
+        _row(
+            1,
+            "0010 TYPE E0181296 01 NR 2",
+            ["0010", "TYPE", "E0181296", "01", "NR", "2"],
+            bbox=(10, 100, 250, 108),
+            metadata={
+                "word_boxes": [
+                    {"text": "0010", "x0": 10, "x1": 30},
+                    {"text": "TYPE", "x0": 45, "x1": 80},
+                    {"text": "E0181296", "x0": 95, "x1": 150},
+                    {"text": "01", "x0": 165, "x1": 178},
+                    {"text": "NR", "x0": 195, "x1": 210},
+                    {"text": "2", "x0": 225, "x1": 232},
+                ]
+            },
+        ),
+    ]
+    out, _ = apply_page_lane_inference(rows)
+    diag = out[0].metadata["diagnostic_provenance"]
+    assert "field_provenance" in diag
+    assert diag["field_provenance"]["code"]["final_writer_stage"] in {"anchor_reconstruction", "lane_assignment"}
+    assert diag["confidence_provenance"]["final_operational_confidence"] == out[0].parser_confidence
+
+
+def test_provenance_exists_for_stitched_multiline_row():
+    rows = [
+        _row(1, "0010 TYPE E0181296 01 NR 2", ["0010", "TYPE", "E0181296", "01", "NR", "2"], bbox=(10, 100, 240, 108), item="0010", code="E0181296", revision="01"),
+        _row(2, "supplier ACME SRL", ["supplier", "ACME", "SRL"], ["continuation_candidate"], bbox=(90, 112, 240, 120)),
+    ]
+    out = stitch_multiline_rows(rows)
+    diag = out[0].metadata["diagnostic_provenance"]
+    merge = diag["row_merge_provenance"]
+    assert merge["merged_by_final_stitch"] is True
+    assert merge["child_row_ids"]
+
+
+def test_provenance_marks_description_append_on_stitch():
+    rows = [
+        _row(1, "0010 BASE", ["0010", "BASE"], bbox=(10, 100, 120, 108), description="BASE"),
+        _row(2, "CONTINUATION DETAILS", ["CONTINUATION", "DETAILS"], ["continuation_candidate"], bbox=(12, 112, 210, 120)),
+    ]
+    out = stitch_multiline_rows(rows)
+    desc_prov = out[0].metadata["diagnostic_provenance"]["field_provenance"]["description"]
+    assert desc_prov["final_writer_stage"] == "final_stitch"
+    assert desc_prov["was_appended"] is True
+
+
+def test_provenance_exists_for_uom_quantity_split_reconstruction():
+    rows = [
+        _row(
+            1,
+            "0010 TYPE E0181296 01 NR 2",
+            ["0010", "TYPE", "E0181296", "01", "NR", "2"],
+            bbox=(10, 100, 250, 108),
+            metadata={
+                "word_boxes": [
+                    {"text": "0010", "x0": 10, "x1": 30},
+                    {"text": "TYPE", "x0": 45, "x1": 80},
+                    {"text": "E0181296", "x0": 95, "x1": 150},
+                    {"text": "01", "x0": 165, "x1": 178},
+                    {"text": "NR", "x0": 195, "x1": 210},
+                    {"text": "2", "x0": 225, "x1": 232},
+                ]
+            },
+        ),
+        _row(
+            2,
+            "0020 TYPE E0181297 02 KG 4",
+            ["0020", "TYPE", "E0181297", "02", "KG", "4"],
+            bbox=(10, 112, 250, 120),
+            metadata={
+                "word_boxes": [
+                    {"text": "0020", "x0": 10, "x1": 30},
+                    {"text": "TYPE", "x0": 45, "x1": 80},
+                    {"text": "E0181297", "x0": 95, "x1": 150},
+                    {"text": "02", "x0": 165, "x1": 178},
+                    {"text": "KG", "x0": 195, "x1": 210},
+                    {"text": "4", "x0": 225, "x1": 232},
+                ]
+            },
+        ),
+    ]
+    out, _ = apply_page_lane_inference(rows)
+    prov = out[0].metadata["diagnostic_provenance"]["field_provenance"]
+    assert prov["uom"]["final_writer_stage"] in {"anchor_reconstruction", "lane_assignment"}
+    assert prov["quantity_raw"]["final_writer_stage"] in {"anchor_reconstruction", "lane_assignment"}
+    assert out[0].uom != out[0].quantity_raw
+
+
 def test_header_and_footer_rows_are_structural_non_bom_states():
     rows = [
         _row(1, "ITEM CODE QTY DESCRIPTION", ["ITEM", "CODE", "QTY", "DESCRIPTION"], ["header_row", "probable_header_leakage"], bbox=(10, 80, 220, 88), metadata={"atomic_line": {"is_header_like": True, "starts_with_item_anchor": False}}),
