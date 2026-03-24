@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from .models import RawRowRecord
 from .normalization.row_reconstruction import stitch_multiline_rows
+from .provenance import record_stage_diff, snapshot_tracked_fields
 from .utils import looks_like_code, looks_like_header, looks_like_item, looks_like_quantity, normalize_space
 
 UOM_TOKENS = {"NR", "PZ", "KG", "M", "MM", "CM", "SET", "MT", "EA"}
@@ -42,6 +43,7 @@ def _nearest_token(tokens: list[tuple[str, float]], target_x: float, predicate) 
 
 
 def weak_map_columns(row: RawRowRecord) -> RawRowRecord:
+    before = snapshot_tracked_fields(row)
     cols = [normalize_space(c) for c in row.extracted_columns if normalize_space(c)]
     row.extracted_columns = cols
     row.metadata.setdefault("raw_fragments", list(cols))
@@ -139,4 +141,10 @@ def weak_map_columns(row: RawRowRecord) -> RawRowRecord:
     if row.item is None and row.extracted_columns and not looks_like_item(row.extracted_columns[0]):
         row.warnings.append("continuation_candidate")
 
+    record_stage_diff(
+        row,
+        "weak_map_columns",
+        before,
+        source_fragments=list(row.extracted_columns),
+    )
     return row

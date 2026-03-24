@@ -4,6 +4,12 @@ from dataclasses import dataclass
 from statistics import median
 
 from ..models import RawRowRecord
+from ..provenance import (
+    mark_row_merge,
+    record_stage_diff,
+    set_final_operational_confidence,
+    snapshot_tracked_fields,
+)
 from ..utils import looks_like_code, looks_like_item, looks_like_quantity, normalize_space
 
 MAX_VERTICAL_GAP = 18.0
@@ -698,6 +704,7 @@ def _apply_anchor_integrity_warnings(row: RawRowRecord) -> None:
 
 
 def _reconstruct_anchor_fields(row: RawRowRecord, lane_model: PageLaneModel) -> None:
+    before = snapshot_tracked_fields(row)
     reconstruction = _compose_left_to_right_reconstruction(row, lane_model)
     if reconstruction is None:
         return
@@ -727,10 +734,26 @@ def _reconstruct_anchor_fields(row: RawRowRecord, lane_model: PageLaneModel) -> 
         "description_anchor_leakage_suspected": reconstruction.description_anchor_leakage_suspected,
         "code_revision_boundary_confidence": reconstruction.code_revision_boundary_confidence,
     }
+    token_indices = sorted(
+        set(
+            list(reconstruction.code_token_indices)
+            + list(reconstruction.description_token_indices)
+            + list(reconstruction.later_token_indices)
+            + ([reconstruction.revision_token_index] if reconstruction.revision_token_index is not None else [])
+        )
+    )
+    record_stage_diff(
+        row,
+        "anchor_reconstruction",
+        before,
+        source_token_indices=token_indices,
+        lock_state_relevant=reconstruction.field_order_locked,
+    )
     _apply_anchor_integrity_warnings(row)
 
 
 def _assign_fields_by_lanes(row: RawRowRecord, lane_model: PageLaneModel) -> None:
+    before = snapshot_tracked_fields(row)
     spans = _token_spans(row)
     if not spans:
         return
@@ -800,6 +823,14 @@ def _assign_fields_by_lanes(row: RawRowRecord, lane_model: PageLaneModel) -> Non
         row.warnings.append("field_assignment_uncertain")
 
     _promote_revision_from_quantity_slot(row)
+    record_stage_diff(
+        row,
+        "lane_assignment",
+        before,
+        source_fragments=[span.text for span in spans],
+        source_token_indices=[span.index for span in spans],
+        lock_state_relevant=bool(row.metadata.get("anchor_reconstruction", {}).get("field_order_locked")),
+    )
 
 
 def _promote_revision_from_quantity_slot(row: RawRowRecord) -> None:
@@ -1125,6 +1156,7 @@ def apply_page_lane_inference(rows: list[RawRowRecord]) -> tuple[list[RawRowReco
         suppressed_warnings += _denoise_row_warnings(row, lane_model)
         confidence_band, conf_score = _apply_operational_confidence(row, lane_model)
         row.parser_confidence = conf_score
+        set_final_operational_confidence(row, conf_score)
         row.metadata["operational_confidence_band"] = confidence_band
 
     total_warnings = sum(len(set(r.warnings)) for r in rows)
@@ -1382,6 +1414,7 @@ def _route_expandable_field(parent: RawRowRecord, row: RawRowRecord) -> str:
 
 
 def _merge_continuation_by_roles(prev: RawRowRecord, row: RawRowRecord) -> None:
+    before = snapshot_tracked_fields(prev)
     anchor_status = _row_anchor_status(prev)
     locked = _anchor_fields_locked(anchor_status)
     if locked and "row_anchor_fields_locked" not in prev.warnings:
@@ -1427,6 +1460,13 @@ def _merge_continuation_by_roles(prev: RawRowRecord, row: RawRowRecord) -> None:
 
     if not any(incoming_status.values()) and "continuation_attachment_uncertain" not in prev.warnings:
         prev.warnings.append("continuation_attachment_uncertain")
+    record_stage_diff(
+        prev,
+        "final_stitch",
+        before,
+        source_fragments=[row.raw_text, *row.extracted_columns],
+        lock_state_relevant=locked,
+    )
 
 
 
@@ -1544,6 +1584,7 @@ def stitch_multiline_rows(rows: list[RawRowRecord]) -> list[RawRowRecord]:
             prev.metadata["raw_fragments"].append(row.raw_text)
             prev.raw_text = normalize_space(f"{prev.raw_text} {row.raw_text}")
             prev.extracted_columns.extend(row.extracted_columns)
+            mark_row_merge(prev, row, "final_stitch")
             _merge_continuation_by_roles(prev, row)
             if "parent_row_attached" not in prev.warnings:
                 prev.warnings.append("parent_row_attached")

@@ -5,6 +5,7 @@ import re
 from statistics import median
 
 from ..models import ParserPageResult, RawRowRecord
+from ..provenance import mark_row_merge, set_boundary_adjusted_confidence
 from ..utils import looks_like_footer, looks_like_header, looks_like_item, looks_like_quantity, normalize_space
 
 ITEM_ANCHOR_PATTERN = re.compile(r"^\d{3,4}$")
@@ -346,6 +347,7 @@ def _update_row_confidence(row: RawRowRecord) -> None:
     if "parser_supported_attachment" in row.warnings:
         confidence += 0.05
     row.parser_confidence = max(0.0, min(1.0, round(confidence, 3)))
+    set_boundary_adjusted_confidence(row, row.parser_confidence)
 
 
 def apply_row_boundary_engine(
@@ -417,6 +419,7 @@ def apply_row_boundary_engine(
         prev.metadata["raw_fragments"].append(row.raw_text)
         prev.raw_text = normalize_space(f"{prev.raw_text} {row.raw_text}")
         prev.extracted_columns.extend(row.extracted_columns)
+        mark_row_merge(prev, row, "row_boundary_engine")
         if prev.bbox_row and row.bbox_row:
             prev.bbox_row = (
                 min(prev.bbox_row[0], row.bbox_row[0]),

@@ -20,6 +20,20 @@ class StorageManager:
                 fh.write(json.dumps(row.model_dump(), ensure_ascii=False, default=str) + "\n")
         return path
 
+    def write_provenance_jsonl(self, rows: list[RawRowRecord]) -> Path:
+        path = self.output_dir / "rows.provenance.jsonl"
+        with path.open("w", encoding="utf-8") as fh:
+            for row in rows:
+                provenance = row.metadata.get("diagnostic_provenance", {}) if isinstance(row.metadata, dict) else {}
+                payload = {
+                    "document_id": row.document_id,
+                    "page_number": row.page_number,
+                    "row_index_on_page": row.row_index_on_page,
+                    "diagnostic_provenance": provenance,
+                }
+                fh.write(json.dumps(payload, ensure_ascii=False, default=str) + "\n")
+        return path
+
     def write_csv(self, rows: list[RawRowRecord]) -> Path:
         path = self.output_dir / "rows.csv"
         df = pd.DataFrame([r.model_dump() for r in rows])
