@@ -17,6 +17,23 @@ class PyMuPDFWordsParser(BasePageParser):
     _ITEM_ANCHOR_RE = re.compile(r"^\d{3,4}$")
     _CODE_ANCHOR_RE = re.compile(r"^[A-Z0-9][A-Z0-9\-./]{2,}$")
     _REV_ANCHOR_RE = re.compile(r"^(?:[A-Z]|[A-Z]\d|\d{1,2}|REV\.?)$", re.IGNORECASE)
+    _X_CLUSTER_GAP = 18.0
+    _X_ALIGN_TOLERANCE = 14.0
+
+    @classmethod
+    def _cluster_x_positions(cls, xs: list[float], tolerance: float) -> list[float]:
+        if not xs:
+            return []
+        centers: list[float] = []
+        current_cluster: list[float] = [xs[0]]
+        for x in xs[1:]:
+            if abs(x - current_cluster[-1]) <= tolerance:
+                current_cluster.append(x)
+                continue
+            centers.append(sum(current_cluster) / len(current_cluster))
+            current_cluster = [x]
+        centers.append(sum(current_cluster) / len(current_cluster))
+        return centers
 
     @classmethod
     def _looks_like_table_row_anchor(cls, cells: list[tuple]) -> bool:
@@ -28,6 +45,36 @@ class PyMuPDFWordsParser(BasePageParser):
         has_code = any(cls._CODE_ANCHOR_RE.match(t) and any(ch.isdigit() for ch in t) for t in tokens)
         has_rev = any(cls._REV_ANCHOR_RE.match(t) for t in tokens[-3:])
         return has_item and has_code and has_rev
+
+    @classmethod
+    def _looks_like_clustered_table_row(cls, cells: list[tuple], x_hints: list[float]) -> bool:
+        if len(cells) < 3 or len(x_hints) < 6:
+            return False
+        sorted_cells = sorted(cells, key=lambda x: x[0])
+        cell_xs = [float(c[0]) for c in sorted_cells]
+        candidate_clusters = cls._cluster_x_positions(cell_xs, cls._X_CLUSTER_GAP)
+        if len(candidate_clusters) < 3:
+            return False
+
+        span_min = min(float(c[0]) for c in sorted_cells)
+        span_max = max(float(c[2]) for c in sorted_cells)
+        span_width = span_max - span_min
+        if span_width <= 0:
+            return False
+        total_word_width = sum(max(0.0, float(c[2]) - float(c[0])) for c in sorted_cells)
+        coverage_ratio = total_word_width / span_width
+        if coverage_ratio > 0.68:
+            return False
+
+        reference_clusters = cls._cluster_x_positions(sorted(float(x) for x in x_hints), cls._X_CLUSTER_GAP)
+        if len(reference_clusters) < 3:
+            return False
+
+        aligned = 0
+        for cluster_x in candidate_clusters:
+            if any(abs(cluster_x - ref_x) <= cls._X_ALIGN_TOLERANCE for ref_x in reference_clusters):
+                aligned += 1
+        return aligned >= 3 or (aligned >= 2 and len(candidate_clusters) <= 4)
 
     def parse_page(self, pdf_path: Path, page_ctx: PageContext) -> ParserPageResult:
         result = ParserPageResult(parser_name=self.parser_name, page_number=page_ctx.page_number)
@@ -61,7 +108,9 @@ class PyMuPDFWordsParser(BasePageParser):
                 if sorted_cells:
                     in_footer_band = any(c[3] >= zones.footer_cutoff for c in sorted_cells)
                     if in_footer_band:
-                        keep_footer_bucket = self._looks_like_table_row_anchor(sorted_cells)
+                        keep_footer_bucket = self._looks_like_table_row_anchor(sorted_cells) or self._looks_like_clustered_table_row(
+                            sorted_cells, x_hints
+                        )
 
                 for cell in sorted_cells:
                     x0, y0, x1, y1, _ = cell
