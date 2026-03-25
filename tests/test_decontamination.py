@@ -83,6 +83,78 @@ def test_decontaminate_keeps_footer_adjacent_valid_anchor_row(tmp_path):
     assert out[0].item == "0165"
 
 
+def test_decontaminate_keeps_footer_adjacent_valid_anchor_row_with_literal_null_item(tmp_path):
+    pipe = ExtractionPipeline(ExtractionConfig(output_dir=tmp_path, write_csv=False, write_parquet=False))
+    rows = [
+        RawRowRecord(
+            source_file="a",
+            source_file_hash="h",
+            document_id="d",
+            page_number=1,
+            row_index_on_page=11,
+            raw_text="null Disegno E0181296 01.DRW 14 QUIRIS Laser Unit",
+            extracted_columns=["null", "Disegno", "E0181296 01.DRW", "14", "QUIRIS Laser Unit"],
+            parser_name="x",
+            item="null",
+            type_raw="Disegno",
+            code="E0181296 01.DRW",
+            revision="14",
+            description="QUIRIS Laser Unit",
+            warnings=["footer_row"],
+            metadata={"row_structure_classification": "non_bom_structural_row", "atomic_line": {"is_footer_like": True}},
+        ),
+    ]
+    out = pipe._decontaminate_page_rows(rows)
+    assert len(out) == 1
+    assert out[0].item == "null"
+
+
+def test_decontaminate_drops_footer_legal_line_even_if_row_like(tmp_path):
+    pipe = ExtractionPipeline(ExtractionConfig(output_dir=tmp_path, write_csv=False, write_parquet=False))
+    rows = [
+        RawRowRecord(
+            source_file="a",
+            source_file_hash="h",
+            document_id="d",
+            page_number=1,
+            row_index_on_page=12,
+            raw_text="THIS DOCUMENT CONTAINS PROPRIETARY INFORMATION E0181296 06",
+            extracted_columns=["0165", "THIS DOCUMENT CONTAINS PROPRIETARY INFORMATION", "E0181296", "06"],
+            parser_name="x",
+            item="0165",
+            code="E0181296",
+            revision="06",
+            warnings=["footer_row"],
+            metadata={"row_structure_classification": "non_bom_structural_row", "atomic_line": {"is_footer_like": True}},
+        ),
+    ]
+    out = pipe._decontaminate_page_rows(rows)
+    assert out == []
+
+
+def test_decontaminate_drops_stage_metadata_line_even_if_row_like(tmp_path):
+    pipe = ExtractionPipeline(ExtractionConfig(output_dir=tmp_path, write_csv=False, write_parquet=False))
+    rows = [
+        RawRowRecord(
+            source_file="a",
+            source_file_hash="h",
+            document_id="d",
+            page_number=1,
+            row_index_on_page=13,
+            raw_text="Stato/Stage: RILASCIATO / RELEASED Nome/Code: E0181296 01 Rev: 06",
+            extracted_columns=["0165", "Stato/Stage:", "RILASCIATO", "E0181296", "06"],
+            parser_name="x",
+            item="0165",
+            code="E0181296",
+            revision="06",
+            warnings=["footer_row"],
+            metadata={"row_structure_classification": "non_bom_structural_row", "atomic_line": {"is_footer_like": True}},
+        ),
+    ]
+    out = pipe._decontaminate_page_rows(rows)
+    assert out == []
+
+
 def test_continuation_page_header_policy_nulls_structured_header_fields(tmp_path):
     pipe = ExtractionPipeline(ExtractionConfig(output_dir=tmp_path, write_csv=False, write_parquet=False))
     page = PageOutput(
