@@ -18,7 +18,7 @@ from .parsers.ocr_parser import OCRFallbackParser
 from .parsers.pdfplumber_parser import PdfPlumberTableParser
 from .parsers.pymupdf_parser import PyMuPDFWordsParser
 from .storage import StorageManager
-from .utils import normalize_space, sha256_file
+from .utils import looks_like_code, looks_like_item, normalize_space, sha256_file
 from .validators import validate_row
 from .zoning import infer_page_layout
 
@@ -270,10 +270,20 @@ class ExtractionPipeline:
                 and not starts_anchor
                 )
             )
+            if suppress_from_table and self._is_footer_adjacent_valid_row(row):
+                suppress_from_table = False
             if suppress_from_table:
                 continue
             cleaned.append(row)
         return cleaned
+
+    @staticmethod
+    def _is_footer_adjacent_valid_row(row: RawRowRecord) -> bool:
+        atomic = row.metadata.get("atomic_line") if isinstance(row.metadata, dict) else None
+        if not isinstance(atomic, dict) or not atomic.get("is_footer_like"):
+            return False
+        item_text = normalize_space(row.item or (row.extracted_columns[0] if row.extracted_columns else ""))
+        return bool(item_text and looks_like_item(item_text) and looks_like_code(row.code) and normalize_space(row.revision or ""))
 
     def _build_page_layout(self, page: fitz.Page, page_ctx: PageContext) -> dict:
         words = page.get_text("words") or []
