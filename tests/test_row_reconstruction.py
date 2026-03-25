@@ -210,6 +210,54 @@ def test_lane_inference_sets_model_and_keeps_uom_qty_split():
     assert out[1].uom != out[1].quantity_raw
 
 
+def test_lane_inference_extracts_kgm_quantity_005():
+    rows = [
+        _row(
+            1,
+            "0010 TYPE E0181296 01 KGM 0.05",
+            ["0010", "TYPE", "E0181296", "01", "KGM", "0.05"],
+            bbox=(10, 100, 260, 108),
+            metadata={
+                "word_boxes": [
+                    {"text": "0010", "x0": 10, "x1": 30},
+                    {"text": "TYPE", "x0": 45, "x1": 80},
+                    {"text": "E0181296", "x0": 95, "x1": 150},
+                    {"text": "01", "x0": 165, "x1": 178},
+                    {"text": "KGM", "x0": 195, "x1": 218},
+                    {"text": "0.05", "x0": 230, "x1": 252},
+                ]
+            },
+        )
+    ]
+    out, _ = apply_page_lane_inference(rows)
+    assert out[0].uom == "KGM"
+    assert out[0].quantity_raw == "0.05"
+
+
+def test_lane_inference_extracts_kgm_quantity_0025():
+    rows = [
+        _row(
+            1,
+            "0010 TYPE E0181296 01 KGM 0.025",
+            ["0010", "TYPE", "E0181296", "01", "KGM", "0.025"],
+            bbox=(10, 100, 270, 108),
+            metadata={
+                "word_boxes": [
+                    {"text": "0010", "x0": 10, "x1": 30},
+                    {"text": "TYPE", "x0": 45, "x1": 80},
+                    {"text": "E0181296", "x0": 95, "x1": 150},
+                    {"text": "01", "x0": 165, "x1": 178},
+                    {"text": "KGM", "x0": 195, "x1": 218},
+                    {"text": "0.025", "x0": 230, "x1": 258},
+                ]
+            },
+        )
+    ]
+    out, _ = apply_page_lane_inference(rows)
+    assert out[0].uom == "KGM"
+    assert out[0].quantity_raw == "0.025"
+
+
 def test_complete_anchor_row_not_marked_as_continuation_candidate():
     rows = [
         _row(1, "0010 TYPE E0181296 01 NR 2", ["0010", "TYPE", "E0181296", "01", "NR", "2"], bbox=(10, 100, 220, 108), item="0010", code="E0181296", revision="01", uom="NR", quantity_raw="2"),

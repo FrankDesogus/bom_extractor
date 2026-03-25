@@ -5,7 +5,7 @@ from .normalization.row_reconstruction import stitch_multiline_rows
 from .provenance import record_stage_diff, snapshot_tracked_fields
 from .utils import looks_like_code, looks_like_header, looks_like_item, looks_like_quantity, normalize_space
 
-UOM_TOKENS = {"NR", "PZ", "KG", "M", "MM", "CM", "SET", "MT", "EA"}
+UOM_TOKENS = {"NR", "PZ", "KG", "KGM", "M", "MM", "CM", "SET", "MT", "EA"}
 
 
 def _lane_hint(row: RawRowRecord, role: str) -> float | None:
