@@ -44,13 +44,65 @@ class ExtractionPipeline:
         return parsers
 
     def parse_input(self, input_path: Path) -> list[RawRowRecord]:
-        pdfs = [input_path] if input_path.is_file() else sorted(input_path.glob("*.pdf"))
+        if input_path.is_file():
+            pdfs = [input_path]
+            batch_mode = False
+        else:
+            pdfs = sorted(
+                pdf_path
+                for pdf_path in input_path.rglob("*.pdf")
+                if "BOM" in pdf_path.name
+            )
+            batch_mode = True
         all_rows: list[RawRowRecord] = []
         summaries: list[DocumentSummary] = []
         for pdf_path in pdfs:
-            rows, summary = self.parse_document(pdf_path)
+            try:
+                rows, summary = self.parse_document(pdf_path)
+            except Exception as exc:
+                self.logger.error(
+                    "document parse failed",
+                    extra={"structured": {"source_file": str(pdf_path), "error": f"{type(exc).__name__}:{exc}"}},
+                )
+                continue
             all_rows.extend(rows)
             summaries.append(summary)
+            if batch_mode:
+                if self.config.write_csv:
+                    self.storage.write_csv(rows, filename=f"{pdf_path.stem}.csv")
+
+        if not batch_mode:
+            combined = DocumentSummary(
+                source_file=str(input_path),
+                source_file_hash="",
+                document_id="batch",
+                pages_seen=sum(s.pages_seen for s in summaries),
+                rows_emitted=sum(s.rows_emitted for s in summaries),
+                parser_usage=self._merge_parser_usage(summaries),
+                warnings=[w for s in summaries for w in s.warnings],
+                errors=[e for s in summaries for e in s.errors],
+                fusion_decisions=[d for s in summaries for d in s.fusion_decisions],
+                page_layouts=[p for s in summaries for p in s.page_layouts],
+                pages=[p for s in summaries for p in s.pages],
+                page_state_distribution=self._merge_counter_maps(summaries, "page_state_distribution"),
+                structural_row_metrics=self._merge_metric_maps(summaries),
+                document_metadata={"documents": [s.document_metadata for s in summaries]},
+            )
+            self.storage.write_jsonl(all_rows)
+            self.storage.write_provenance_jsonl(all_rows)
+            if self.config.write_csv:
+                self.storage.write_csv(all_rows)
+            if self.config.write_parquet:
+                self.storage.write_parquet(all_rows)
+            self.storage.write_summary(combined)
+            return all_rows
+
+        if not summaries:
+            self.logger.warning(
+                "no matching BOM PDFs found",
+                extra={"structured": {"input_path": str(input_path)}},
+            )
+            return []
 
         combined = DocumentSummary(
             source_file=str(input_path),
@@ -68,12 +120,6 @@ class ExtractionPipeline:
             structural_row_metrics=self._merge_metric_maps(summaries),
             document_metadata={"documents": [s.document_metadata for s in summaries]},
         )
-        self.storage.write_jsonl(all_rows)
-        self.storage.write_provenance_jsonl(all_rows)
-        if self.config.write_csv:
-            self.storage.write_csv(all_rows)
-        if self.config.write_parquet:
-            self.storage.write_parquet(all_rows)
         self.storage.write_summary(combined)
         return all_rows
 

@@ -34,8 +34,8 @@ class StorageManager:
                 fh.write(json.dumps(payload, ensure_ascii=False, default=str) + "\n")
         return path
 
-    def write_csv(self, rows: list[RawRowRecord]) -> Path:
-        path = self.output_dir / "rows.csv"
+    def write_csv(self, rows: list[RawRowRecord], filename: str = "rows.csv") -> Path:
+        path = self.output_dir / filename
         df = pd.DataFrame([r.model_dump() for r in rows])
         df.to_csv(path, index=False)
         return path
