@@ -282,8 +282,18 @@ class ExtractionPipeline:
         atomic = row.metadata.get("atomic_line") if isinstance(row.metadata, dict) else None
         if not isinstance(atomic, dict) or not atomic.get("is_footer_like"):
             return False
+        if ExtractionPipeline._looks_like_footer_or_metadata_line(row.raw_text):
+            return False
         item_text = normalize_space(row.item or (row.extracted_columns[0] if row.extracted_columns else ""))
-        return bool(item_text and looks_like_item(item_text) and looks_like_code(row.code) and normalize_space(row.revision or ""))
+        has_item_anchor = looks_like_item(item_text) or item_text.lower() == "null"
+        return bool(has_item_anchor and looks_like_code(row.code) and normalize_space(row.revision or ""))
+
+    @staticmethod
+    def _looks_like_footer_or_metadata_line(text: str | None) -> bool:
+        normalized = normalize_space(text or "").lower()
+        if not normalized:
+            return False
+        return normalized.startswith("this document contains") or normalized.startswith("stato/stage:")
 
     def _build_page_layout(self, page: fitz.Page, page_ctx: PageContext) -> dict:
         words = page.get_text("words") or []
