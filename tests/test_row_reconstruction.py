@@ -58,6 +58,17 @@ def test_does_not_stitch_when_new_item_token_appears():
     assert len(out) == 2
 
 
+def test_literal_null_item_row_is_not_stitched_into_previous_row():
+    rows = [
+        _row(1, "0010 BASE", ["0010", "BASE"], bbox=(10, 100, 120, 108)),
+        _row(2, "null ALT E0181299 01 NR 1", ["null", "ALT", "E0181299", "01", "NR", "1"], ["continuation_candidate"], bbox=(10, 111, 220, 119), item="null", code="E0181299", revision="01"),
+    ]
+    out = stitch_multiline_rows(rows)
+    assert len(out) == 2
+    assert out[1].item == "null"
+    assert "null ALT" not in out[0].raw_text
+
+
 def test_does_not_stitch_when_vertical_gap_too_large():
     rows = [
         _row(1, "0010 BASE", ["0010", "BASE"], bbox=(10, 100, 120, 108)),
@@ -66,6 +77,16 @@ def test_does_not_stitch_when_vertical_gap_too_large():
     out = stitch_multiline_rows(rows)
     assert len(out) == 2
     assert "merge_blocked_vertical_gap" in out[0].warnings
+
+
+def test_normal_multiline_continuation_still_merges():
+    rows = [
+        _row(1, "0010 BASE", ["0010", "BASE"], bbox=(10, 100, 220, 108), item="0010", code="E0181296", revision="01"),
+        _row(2, "supplier ACME SRL", ["supplier", "ACME", "SRL"], ["continuation_candidate"], bbox=(100, 111, 250, 119)),
+    ]
+    out = stitch_multiline_rows(rows)
+    assert len(out) == 1
+    assert out[0].company_name and "ACME" in out[0].company_name
 
 
 def test_limits_excessive_fragment_stitching():

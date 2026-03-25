@@ -1241,11 +1241,12 @@ def _row_has_full_pattern(row: RawRowRecord) -> bool:
 
 
 def _new_item_appears(row: RawRowRecord) -> bool:
-    if row.item and looks_like_item(row.item):
+    if row.item and (looks_like_item(row.item) or normalize_space(row.item).lower() == "null"):
         return True
     if not row.extracted_columns:
         return False
-    return looks_like_item(row.extracted_columns[0])
+    first_column = normalize_space(row.extracted_columns[0])
+    return looks_like_item(first_column) or first_column.lower() == "null"
 
 
 def _starts_with_item_anchor(row: RawRowRecord) -> bool:
