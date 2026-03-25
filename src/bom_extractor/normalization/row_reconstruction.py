@@ -45,7 +45,7 @@ STRONG_WARNING_SIGNALS = {
     "parser_disagreement",
 }
 
-UOM_TOKENS = {"NR", "PZ", "KG", "M", "MM", "CM", "SET", "MT", "EA"}
+UOM_TOKENS = {"NR", "PZ", "KG", "KGM", "M", "MM", "CM", "SET", "MT", "EA"}
 
 
 @dataclass(frozen=True)
