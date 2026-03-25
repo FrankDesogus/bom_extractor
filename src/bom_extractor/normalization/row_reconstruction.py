@@ -214,10 +214,8 @@ def _find_quantity_index(tokens: list[TokenSpan], code_start_idx: int | None) ->
             break
         if not looks_like_quantity(token.text):
             continue
-        trailing_tokens = len(tokens) - token.index - 1
-        if trailing_tokens <= 1:
-            return token.index
-        if token.index > lower_bound and tokens[token.index - 1].text.upper() in UOM_TOKENS:
+        has_left_uom = token.index > lower_bound and tokens[token.index - 1].text.upper() in UOM_TOKENS
+        if has_left_uom:
             return token.index
     return None
 

@@ -258,6 +258,77 @@ def test_lane_inference_extracts_kgm_quantity_0025():
     assert out[0].quantity_raw == "0.025"
 
 
+def test_reference_like_trailing_number_is_not_quantity_raw():
+    rows = [
+        _row(
+            1,
+            "0095 TYPE E0181296 01 BRACKET 43",
+            ["0095", "TYPE", "E0181296", "01", "BRACKET", "43"],
+            bbox=(10, 100, 300, 108),
+            metadata={
+                "word_boxes": [
+                    {"text": "0095", "x0": 10, "x1": 30},
+                    {"text": "TYPE", "x0": 45, "x1": 80},
+                    {"text": "E0181296", "x0": 95, "x1": 150},
+                    {"text": "01", "x0": 165, "x1": 178},
+                    {"text": "BRACKET", "x0": 190, "x1": 240},
+                    {"text": "43", "x0": 275, "x1": 288},
+                ]
+            },
+        )
+    ]
+    out, _ = apply_page_lane_inference(rows)
+    assert out[0].quantity_raw is None
+
+
+def test_lane_inference_extracts_nr_quantity_1():
+    rows = [
+        _row(
+            1,
+            "0010 TYPE E0181296 01 NR 1",
+            ["0010", "TYPE", "E0181296", "01", "NR", "1"],
+            bbox=(10, 100, 260, 108),
+            metadata={
+                "word_boxes": [
+                    {"text": "0010", "x0": 10, "x1": 30},
+                    {"text": "TYPE", "x0": 45, "x1": 80},
+                    {"text": "E0181296", "x0": 95, "x1": 150},
+                    {"text": "01", "x0": 165, "x1": 178},
+                    {"text": "NR", "x0": 195, "x1": 210},
+                    {"text": "1", "x0": 225, "x1": 232},
+                ]
+            },
+        )
+    ]
+    out, _ = apply_page_lane_inference(rows)
+    assert out[0].uom == "NR"
+    assert out[0].quantity_raw == "1"
+
+
+def test_lane_inference_extracts_nr_quantity_12():
+    rows = [
+        _row(
+            1,
+            "0010 TYPE E0181296 01 NR 12",
+            ["0010", "TYPE", "E0181296", "01", "NR", "12"],
+            bbox=(10, 100, 260, 108),
+            metadata={
+                "word_boxes": [
+                    {"text": "0010", "x0": 10, "x1": 30},
+                    {"text": "TYPE", "x0": 45, "x1": 80},
+                    {"text": "E0181296", "x0": 95, "x1": 150},
+                    {"text": "01", "x0": 165, "x1": 178},
+                    {"text": "NR", "x0": 195, "x1": 210},
+                    {"text": "12", "x0": 225, "x1": 238},
+                ]
+            },
+        )
+    ]
+    out, _ = apply_page_lane_inference(rows)
+    assert out[0].uom == "NR"
+    assert out[0].quantity_raw == "12"
+
+
 def test_complete_anchor_row_not_marked_as_continuation_candidate():
     rows = [
         _row(1, "0010 TYPE E0181296 01 NR 2", ["0010", "TYPE", "E0181296", "01", "NR", "2"], bbox=(10, 100, 220, 108), item="0010", code="E0181296", revision="01", uom="NR", quantity_raw="2"),
