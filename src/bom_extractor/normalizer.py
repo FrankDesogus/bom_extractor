@@ -8,6 +8,10 @@ from .utils import looks_like_code, looks_like_header, looks_like_item, looks_li
 UOM_TOKENS = {"NR", "PZ", "KG", "KGM", "M", "MM", "CM", "SET", "MT", "EA"}
 
 
+def _is_literal_null_item(value: str | None) -> bool:
+    return normalize_space(value or "").lower() == "null"
+
+
 def _lane_hint(row: RawRowRecord, role: str) -> float | None:
     lane_model = row.metadata.get("page_lane_model") if isinstance(row.metadata, dict) else None
     if not isinstance(lane_model, dict):
@@ -82,8 +86,9 @@ def weak_map_columns(row: RawRowRecord) -> RawRowRecord:
         return row
 
     start_idx = 0
-    if cols and looks_like_item(cols[0]):
-        row.item = row.item or cols[0]
+    if cols and (looks_like_item(cols[0]) or _is_literal_null_item(cols[0])):
+        normalized_item = normalize_space(cols[0])
+        row.item = row.item or ("null" if normalized_item.lower() == "null" else normalized_item)
         start_idx = 1
 
     working = cols[start_idx:]

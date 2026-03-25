@@ -12,12 +12,14 @@ HEADER_PATTERNS = [
 ]
 
 FOOTER_PATTERNS = [
+    re.compile(r"this document contains", re.IGNORECASE),
     re.compile(r"proprietary information", re.IGNORECASE),
     re.compile(r"documento emesso", re.IGNORECASE),
     re.compile(r"pagina\s*/\s*sheet", re.IGNORECASE),
+    re.compile(r"stato\s*/\s*stage\s*:", re.IGNORECASE),
 ]
 
-ITEM_PATTERN = re.compile(r"^\s*\d{3,5}\s*$")
+ITEM_PATTERN = re.compile(r"^\s*(?:\d{3,5}|null)\s*$", re.IGNORECASE)
 CODE_PATTERN = re.compile(r"[A-Z]?\d{6,}")
 QUANTITY_PATTERN = re.compile(r"^-?\d+(?:[\.,]\d+)?$")
 

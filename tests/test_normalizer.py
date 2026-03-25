@@ -29,3 +29,15 @@ def test_weak_map_columns_extracts_kgm_quantity_0025():
     out = weak_map_columns(row)
     assert out.uom == "KGM"
     assert out.quantity_raw == "0.025"
+
+
+def test_weak_map_columns_preserves_literal_null_anchor_row():
+    row = _row(
+        "null Disegno E0181296 01.DRW 14 QUIRIS Laser Unit",
+        ["null", "Disegno", "E0181296 01.DRW", "14", "QUIRIS Laser Unit"],
+    )
+    out = weak_map_columns(row)
+    assert out.item == "null"
+    assert out.type_raw == "Disegno"
+    assert out.code == "E0181296 01.DRW"
+    assert out.revision == "14"

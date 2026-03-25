@@ -32,6 +32,20 @@ def test_item_anchor_lines_are_hard_row_boundaries():
     assert "item_column_uncertain" not in warnings
 
 
+def test_literal_null_item_is_treated_as_anchor_boundary():
+    rows = [
+        _row(1, "0015 VALVE", ["0015", "VALVE"], (10, 100, 200, 108)),
+        _row(2, "null Disegno E0181296 01.DRW 14", ["null", "Disegno", "E0181296", "01.DRW", "14"], (10, 111, 240, 119)),
+    ]
+    parser_results = [ParserPageResult(parser_name="pymupdf_words", page_number=1, rows=rows)]
+
+    out, _, metrics = apply_row_boundary_engine(rows, parser_results)
+
+    assert len(out) == 2
+    assert metrics["candidate_item_anchor_count"] == 2
+    assert out[1].metadata["atomic_line"]["starts_with_item_anchor"] is True
+
+
 def test_row_loss_warning_when_anchor_count_far_exceeds_rows():
     selected = [_row(1, "DESC ONLY", ["DESC", "ONLY"], (90, 180, 210, 188))]
     secondary_rows = [

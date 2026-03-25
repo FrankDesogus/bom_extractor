@@ -41,6 +41,16 @@ class AtomicLine:
     continuation_candidate: bool = False
 
 
+def _is_item_anchor_token(token: str | None) -> bool:
+    normalized = normalize_space(token or "")
+    if not normalized:
+        return False
+    if normalized.lower() == "null":
+        return True
+    compact_digits = re.sub(r"[^\d]", "", normalized)
+    return bool(ITEM_ANCHOR_PATTERN.match(compact_digits))
+
+
 def _significant_tokens(text: str) -> list[str]:
     return [t for t in re.split(r"\s+", normalize_space(text)) if t and any(ch.isalnum() for ch in t)]
 
@@ -111,8 +121,7 @@ def infer_item_column_range(lines: list[AtomicLine]) -> tuple[float, float] | No
     for line in lines:
         if not line.tokens:
             continue
-        first = re.sub(r"[^\d]", "", line.tokens[0])
-        if not ITEM_ANCHOR_PATTERN.match(first):
+        if not _is_item_anchor_token(line.tokens[0]):
             continue
         x = _first_token_x(line)
         if x is not None:
@@ -129,8 +138,7 @@ def infer_item_column_range(lines: list[AtomicLine]) -> tuple[float, float] | No
 def _classify_item_anchor(line: AtomicLine, item_range: tuple[float, float] | None) -> bool:
     if not line.tokens:
         return False
-    first_token = re.sub(r"[^\d]", "", line.tokens[0])
-    if not ITEM_ANCHOR_PATTERN.match(first_token):
+    if not _is_item_anchor_token(line.tokens[0]):
         return False
     if item_range is None:
         return True

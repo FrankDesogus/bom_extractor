@@ -274,8 +274,21 @@ class ExtractionPipeline:
                 suppress_from_table = False
             if suppress_from_table:
                 continue
+            if not self._is_valid_emittable_item(row.item):
+                if "invalid_or_missing_item" not in row.warnings:
+                    row.warnings.append("invalid_or_missing_item")
+                continue
             cleaned.append(row)
         return cleaned
+
+    @staticmethod
+    def _is_valid_emittable_item(item: str | None) -> bool:
+        normalized = normalize_space(item or "")
+        if not normalized:
+            return False
+        if normalized.lower() == "null":
+            return True
+        return looks_like_item(normalized)
 
     @staticmethod
     def _is_footer_adjacent_valid_row(row: RawRowRecord) -> bool:
