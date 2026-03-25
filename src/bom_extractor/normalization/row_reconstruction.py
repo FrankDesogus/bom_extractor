@@ -537,6 +537,8 @@ def _compose_left_to_right_reconstruction(row: RawRowRecord, lane_model: PageLan
         return None
 
     item = normalize_space(tokens[0].text) if looks_like_item(tokens[0].text) else None
+    if item and item.lower() == "null":
+        item = "null"
     code_start_idx = _find_code_start_index(tokens)
     if code_start_idx is None:
         return LeftToRightAnchorReconstruction(
