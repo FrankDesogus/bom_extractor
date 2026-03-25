@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from pathlib import Path
+import re
 
 import fitz
 
@@ -13,6 +14,20 @@ from .base import BasePageParser
 
 class PyMuPDFWordsParser(BasePageParser):
     parser_name = "pymupdf_words"
+    _ITEM_ANCHOR_RE = re.compile(r"^\d{3,4}$")
+    _CODE_ANCHOR_RE = re.compile(r"^[A-Z0-9][A-Z0-9\-./]{2,}$")
+    _REV_ANCHOR_RE = re.compile(r"^(?:[A-Z]|[A-Z]\d|\d{1,2}|REV\.?)$", re.IGNORECASE)
+
+    @classmethod
+    def _looks_like_table_row_anchor(cls, cells: list[tuple]) -> bool:
+        tokens = [normalize_space(c[4]) for c in sorted(cells, key=lambda x: x[0])]
+        tokens = [t for t in tokens if t]
+        if len(tokens) < 3:
+            return False
+        has_item = any(cls._ITEM_ANCHOR_RE.match(t) for t in tokens)
+        has_code = any(cls._CODE_ANCHOR_RE.match(t) and any(ch.isdigit() for ch in t) for t in tokens)
+        has_rev = any(cls._REV_ANCHOR_RE.match(t) for t in tokens[-3:])
+        return has_item and has_code and has_rev
 
     def parse_page(self, pdf_path: Path, page_ctx: PageContext) -> ParserPageResult:
         result = ParserPageResult(parser_name=self.parser_name, page_number=page_ctx.page_number)
@@ -32,16 +47,29 @@ class PyMuPDFWordsParser(BasePageParser):
                     header_cutoff=float(layout["zone_header_cutoff"]),
                     footer_cutoff=float(layout["zone_footer_cutoff"]),
                 )
+            raw_buckets: dict[int, list[tuple]] = defaultdict(list)
+            for w in words:
+                x0, y0, x1, y1, text, *_ = w
+                raw_buckets[round(y0 / 3)].append((x0, y0, x1, y1, text))
+
             buckets: dict[int, list[tuple]] = defaultdict(list)
             skipped_header_footer = 0
             x_hints: list[float] = []
-            for w in words:
-                x0, y0, x1, y1, text, *_ = w
-                if y0 <= zones.header_cutoff or y1 >= zones.footer_cutoff:
-                    skipped_header_footer += 1
-                    continue
-                buckets[round(y0 / 3)].append((x0, y0, x1, y1, text))
-                x_hints.append(float(x0))
+            for bucket_key, cells in raw_buckets.items():
+                sorted_cells = sorted(cells, key=lambda x: x[0])
+                keep_footer_bucket = False
+                if sorted_cells:
+                    in_footer_band = any(c[3] >= zones.footer_cutoff for c in sorted_cells)
+                    if in_footer_band:
+                        keep_footer_bucket = self._looks_like_table_row_anchor(sorted_cells)
+
+                for cell in sorted_cells:
+                    x0, y0, x1, y1, _ = cell
+                    if y0 <= zones.header_cutoff or (y1 >= zones.footer_cutoff and not keep_footer_bucket):
+                        skipped_header_footer += 1
+                        continue
+                    buckets[bucket_key].append(cell)
+                    x_hints.append(float(x0))
 
             rows: list[RawRowRecord] = []
             for row_idx, bucket_key in enumerate(sorted(buckets), start=1):
